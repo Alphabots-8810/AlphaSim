@@ -4,7 +4,7 @@
 **距离 → hood 角度 + flywheel 线速度**。最终交付是一个闭式函数,机器人代码里
 输入到 HUB 的距离即可得到 hood 角和飞轮转速,比赛现场只调**一个系数** `kSpeed` 校准落点。
 
-> 出球高度按 8810 实测 **0.50 m** 标定(V3.1:centered-landing + 物理校准 cost,
+> 出球高度按 **0.50 m** 标定(V3.1:centered-landing + 物理校准 cost,
 > `w_tof=1.1` 由 vortex-shedding 散布推导)。
 
 ## 直接拿来用
