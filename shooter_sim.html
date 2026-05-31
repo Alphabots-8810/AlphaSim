@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Alpha Sim</title>
+<style>
+  * { box-sizing: border-box; }
+  body { background: #0e1118; color: #e0e0e0;
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         margin: 0; padding: 20px; min-height: 100vh; }
+  .container { display: flex; gap: 20px; max-width: 1500px; margin: 0 auto; }
+  .controls { width: 300px; flex-shrink: 0; background: #1a1d29; padding: 18px;
+              border-radius: 10px; border: 1px solid #2a2e3d; }
+  .canvas-wrap { flex: 1; background: #1a1d29; padding: 16px; border-radius: 10px;
+                 border: 1px solid #2a2e3d; position: relative; }
+  canvas { background: linear-gradient(to bottom, #0a0e1a 0%, #0e1220 60%,
+           #1a1410 85%, #2d2010 100%); border-radius: 6px; display: block;
+           width: 100%; height: auto; }
+  h1 { font-size: 16px; margin: 0 0 14px 0; color: #4ac8ff; font-weight: 600; }
+  h2 { font-size: 11px; margin: 18px 0 8px 0; color: #888;
+       text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }
+  .slider-row { margin: 10px 0; }
+  .slider-row label { display: flex; justify-content: space-between;
+                       font-size: 12.5px; margin-bottom: 5px; color: #b0b0b0; }
+  .slider-row label .value { color: #4ac8ff; font-weight: 600;
+                              font-family: "SF Mono", Menlo, monospace; }
+  input[type="range"] { width: 100%; accent-color: #4ac8ff; }
+  .stats { position: absolute; top: 28px; right: 28px;
+           background: rgba(8, 11, 20, 0.88); padding: 12px 16px;
+           border-radius: 8px; font-family: "SF Mono", Menlo, monospace;
+           font-size: 12px; line-height: 1.7; border: 1px solid #2a2e3d;
+           min-width: 230px; }
+  .stats .label { color: #888; display: inline-block; min-width: 110px; }
+  .stats .v { color: #e0e0e0; }
+  .stats .auto { color: #ffb84a; font-weight: 600; }
+  .hit-yes { color: #4af07b !important; font-weight: 600; }
+  .hit-no { color: #ff6464 !important; font-weight: 600; }
+  .hit-some { color: #ffb84a !important; font-weight: 600; }
+  hr { border: none; border-top: 1px solid #2a2e3d; margin: 10px 0; }
+  .preset-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+  button { padding: 6px 8px; background: #2a2e3d; color: #e0e0e0;
+           border: 1px solid #3a3e4d; border-radius: 5px; cursor: pointer;
+           font-size: 11.5px; }
+  button:hover { background: #3a3e4d; border-color: #4ac8ff; }
+  button.active { background: #4ac8ff; color: #0e1118; border-color: #4ac8ff;
+                  font-weight: 600; }
+  .legend { font-size: 11px; color: #888; margin-top: 14px; line-height: 1.6; }
+  .auto-tag { background: #ffb84a; color: #1a1d29; font-size: 9px;
+              padding: 2px 5px; border-radius: 3px; vertical-align: middle;
+              margin-left: 6px; font-weight: 700; letter-spacing: 0.5px; }
+  .progress-bar { height: 5px; background: #2a2e3d; border-radius: 3px;
+                  margin-top: 4px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #4ac8ff; transition: width 0.05s; }
+  .physics-box { background: #0e1118; border: 1px solid #2a2e3d; border-radius: 6px;
+                  padding: 8px 10px; font-family: "SF Mono", Menlo, monospace;
+                  font-size: 11.5px; line-height: 1.55; color: #b0b0b0; }
+  .physics-box .pk { display: inline-block; width: 48px; color: #888; }
+  .physics-box .pv { color: #4ac8ff; font-weight: 600; }
+  .physics-box .pn { color: #666; font-size: 10px; margin-left: 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="controls">
+    <h1>🎯 Alpha Sim<span class="auto-tag">V3.1</span></h1>
+
+    <h2>Distance</h2>
+    <div class="slider-row">
+      <label>Distance to hub <span class="value" id="dVal">3.50 m</span></label>
+      <input type="range" id="d" min="1.5" max="5" step="0.05" value="3.50">
+    </div>
+
+    <h2>Optimal (V3.1 centered-landing)</h2>
+    <div class="physics-box">
+      <div><span class="pk">hood</span> <span class="pv" id="autoHood">—</span>
+           <span class="pn">deg</span></div>
+      <div><span class="pk">v_exit</span> <span class="pv" id="autoV">—</span>
+           <span class="pn">m/s</span></div>
+      <div><span class="pk">fly RPM</span> <span class="pv" id="autoRpm">—</span>
+           <span class="pn"></span></div>
+      <div style="margin-top:6px; font-size:10.5px; color:#777; line-height:1.5;">
+        V3.1 raw sweep (Δd = 0.25 m) + 线性插值<br>
+        每个 d 球精确落 hub 中心 (±1 mm)<br>
+        部署多项式见 lookup_polynomial.json
+      </div>
+    </div>
+
+    <h2>Burst settings (fixed)</h2>
+    <div class="physics-box">
+      <div><span class="pk">balls</span> <span class="pv">100</span>
+           <span class="pn">per burst</span></div>
+      <div><span class="pk">duration</span> <span class="pv">3.0 s</span>
+           <span class="pn">~33 balls/s</span></div>
+      <div><span class="pk">v jitter</span> <span class="pv">±3%</span>
+           <span class="pn">mechanical noise</span></div>
+      <div><span class="pk">θ jitter</span> <span class="pv">±1°</span>
+           <span class="pn">servo noise</span></div>
+    </div>
+
+    <h2>Physics (fixed)</h2>
+    <div class="physics-box">
+      <div><span class="pk">Cd</span> <span class="pv">0.50</span>
+           <span class="pn">foam ball, volleyball-like</span></div>
+      <div><span class="pk">g</span>  <span class="pv">9.81 m/s²</span></div>
+      <div><span class="pk">ρ_air</span> <span class="pv">1.225 kg/m³</span>
+           <span class="pn">sea level, 15°C</span></div>
+      <div><span class="pk">r_ball</span> <span class="pv">0.075 m</span>
+           <span class="pn">5.91" / 2</span></div>
+      <div><span class="pk">m_ball</span> <span class="pv">0.215 kg</span>
+           <span class="pn">FUEL spec midpoint</span></div>
+      <div><span class="pk">exit_h</span> <span class="pv">0.50 m</span>
+           <span class="pn">254 style, ~10cm < trench bottom (0.565m)</span></div>
+      <div style="margin-top:6px; font-size:10.5px; color:#777; line-height:1.5;">
+        F_drag = ½·ρ·Cd·A·v²<br>
+        a = (−F_drag·v̂ − g·ĵ) / m<br>
+        RK45 / Euler dt=2 ms
+      </div>
+    </div>
+
+    <div class="legend">
+      <div>蓝 → 红 表示发射先后顺序</div>
+      <div>球进 effective 区 = green hit marker</div>
+      <div>球偏出 = red hit marker</div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="canvas" width="1080" height="560"></canvas>
+    <div class="stats" id="stats">
+      <div><span class="label">v_exit (auto):</span>
+           <span class="v auto" id="vauto">—</span> m/s</div>
+      <div><span class="label">Peak height:</span> <span class="v" id="peak">—</span> m</div>
+      <div><span class="label">TOF (mean):</span> <span class="v" id="tof">—</span> s</div>
+      <div><span class="label">Entry angle:</span> <span class="v" id="entry">—</span>°</div>
+      <div><span class="label">Rate of fire:</span> <span class="v" id="rof">—</span> /s</div>
+      <hr>
+      <div><span class="label">In flight now:</span> <span class="v" id="inflight">—</span></div>
+      <div><span class="label">Landed:</span> <span class="v" id="landed">—</span></div>
+      <div><span class="label">Score / Miss:</span> <span class="v" id="scoreMiss">—</span></div>
+      <div><span class="label">Hit rate:</span> <span id="hitRate" class="v">—</span></div>
+      <div><span class="label">Cluster spread:</span> <span class="v" id="spread">—</span> m</div>
+      <div class="progress-bar"><div class="progress-fill" id="progress" style="width:0%"></div></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─────────── Hub geometry (manual-verified only) ───────────
+// 2026 Manual: "41.7in (~1.06m) hexagonal opening, front edge 72in (~1.83m)
+//               off the carpet". Top of opening at 1.829m.
+// Plate height / funnel direction NOT confirmed by manual; not visualized.
+const HUB = {
+  topHexHalf: 0.53,    // apothem of 1.06m hex
+  topY: 1.829,         // 72" verified
+  baseHalf: 0.597,     // 47" / 2
+  approxBoxTop: 1.42   // visual only; vertical beam = 55.972" ≈ 1.42m
+};
+const BALL = { radius: 0.075, mass: 0.215 };  // FUEL: 5.91" foam ball
+const G = 9.81, RHO = 1.225;
+
+// ─────────── Canvas ───────────
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const SCALE = 110;
+const ORIGIN_X = 60;
+const ORIGIN_Y = H - 35;
+const w2c = (x, y) => [ORIGIN_X + x * SCALE, ORIGIN_Y - y * SCALE];
+
+// ─────────── Single trajectory (forward Euler, dt=0.002) ───────────
+function simulate(v_exit, hood_deg, exit_h, target_h, Cd) {
+  const theta = hood_deg * Math.PI / 180;
+  const area = Math.PI * BALL.radius ** 2;
+  const k = 0.5 * RHO * Cd * area / BALL.mass;
+  const dt = 0.002, tMax = 6;
+  let x = 0, y = exit_h;
+  let vx = v_exit * Math.cos(theta);
+  let vy = v_exit * Math.sin(theta);
+  const pts = [{ t: 0, x, y, vx, vy }];
+  let hit = null, peak = y, t = 0;
+  let prevY = y, prevX = x, prevVy = vy;
+  while (t < tMax) {
+    const v = Math.hypot(vx, vy);
+    const ax = -k * v * vx;
+    const ay = -G - k * v * vy;
+    vx += ax * dt; vy += ay * dt;
+    x  += vx * dt; y  += vy * dt;
+    t  += dt;
+    if (y > peak) peak = y;
+    pts.push({ t, x, y, vx, vy });
+    if (!hit && prevY > target_h && y <= target_h && prevVy < 0) {
+      const frac = (prevY - target_h) / (prevY - y);
+      hit = { t: t - dt + frac * dt,
+              x: prevX + frac * (x - prevX), vx, vy };
+    }
+    prevY = y; prevX = x; prevVy = vy;
+    if (y < -0.3) break;
+  }
+  return { points: pts, hit, peak, dt };
+}
+
+// ─────────── Auto-fit v_exit for centered landing ───────────
+function findVForCenter(distance, hood_deg, exit_h, target_h, Cd) {
+  const th = hood_deg * Math.PI / 180;
+  const dh = target_h - exit_h;
+  if (Math.sin(th) < 0.02 || Math.cos(th) < 0.02) return null;
+  const denom = distance * Math.tan(th) - dh;
+  if (denom <= 0) return null;
+  const v_seed = Math.sqrt(0.5 * G * distance ** 2 / (Math.cos(th) ** 2 * denom));
+  const offsetOf = (v) => {
+    const r = simulate(v, hood_deg, exit_h, target_h, Cd);
+    return r.hit ? (r.hit.x - distance) : -distance;
+  };
+  let lo = Math.max(0.5, v_seed * 0.85), hi = v_seed * 2.5;
+  let fLo = offsetOf(lo), fHi = offsetOf(hi);
+  for (let i = 0; i < 8 && fHi < 0; i++) { hi *= 1.4; fHi = offsetOf(hi); }
+  if (fHi < 0) return null;
+  for (let i = 0; i < 6 && fLo > 0; i++) { lo *= 0.7; fLo = offsetOf(lo); }
+  if (fLo > 0) return null;
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2;
+    const fMid = offsetOf(mid);
+    if (Math.abs(fMid) < 0.003) return mid;
+    if (fMid < 0) { lo = mid; fLo = fMid; }
+    else          { hi = mid; fHi = fMid; }
+  }
+  return (lo + hi) / 2;
+}
+
+// ─────────── Sequential burst: N balls fired over duration ───────────
+// Each ball gets randomized v / angle jitter to simulate mechanical noise.
+// Seed-fixed RNG so balls don't re-roll every recompute (stable visual).
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = a;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function simulateBurst(p) {
+  // v_center & hood come directly from V3.1 lookup table — no run-time root-find.
+  const vCenter = p.v_center;
+  const balls = [];
+  const rng = mulberry32(42);  // fixed seed for stable visual
+  const interval = p.duration / Math.max(p.N, 1);
+  for (let i = 0; i < p.N; i++) {
+    const launchTime = i * interval;
+    const vJit = (rng() - 0.5) * 2 * p.vJitterPct / 100;
+    const aJit = (rng() - 0.5) * 2 * p.angleJitter;
+    const v   = vCenter * (1 + vJit);
+    const ang = p.hood_deg + aJit;
+    const traj = simulate(v, ang, p.exit_h, HUB.topY, p.Cd);
+    balls.push({ launchTime, v, ang, traj, idx: i });
+  }
+  return { vCenter, balls };
+}
+
+// ─────────── Color by launch order (blue → red) ───────────
+function ballColor(idx, N) {
+  const t = idx / Math.max(N - 1, 1);
+  // HSL: blue (220) → orange (30)
+  const hue = 220 - 190 * t;
+  return `hsl(${hue}, 75%, 60%)`;
+}
+
+// ─────────── Drawing ───────────
+function draw(p, result, animT) {
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid + labels
+  ctx.strokeStyle = '#1f2535'; ctx.lineWidth = 1;
+  ctx.fillStyle = '#4a5070'; ctx.font = '10px "SF Mono", Menlo, monospace';
+  for (let xm = 0; xm <= 9; xm++) {
+    const [px] = w2c(xm, 0);
+    ctx.beginPath(); ctx.moveTo(px, 8); ctx.lineTo(px, ORIGIN_Y); ctx.stroke();
+    ctx.fillText(xm + ' m', px - 12, ORIGIN_Y + 14);
+  }
+  for (let ym = 0; ym <= 4; ym++) {
+    const [, py] = w2c(0, ym);
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(W, py); ctx.stroke();
+    if (ym > 0) ctx.fillText(ym + ' m', 4, py - 3);
+  }
+  ctx.strokeStyle = '#8b6841'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, ORIGIN_Y); ctx.lineTo(W, ORIGIN_Y); ctx.stroke();
+
+  // ── Hub ──
+  const d = p.distance;
+  const [hxL, hyB]   = w2c(d - HUB.baseHalf, 0);
+  const [hxR, hyBox] = w2c(d + HUB.baseHalf, HUB.approxBoxTop);
+  // wood frame box
+  ctx.fillStyle = '#3a2818';
+  ctx.fillRect(hxL, hyBox, hxR - hxL, hyB - hyBox);
+  ctx.strokeStyle = '#5a3828'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(hxL, hyBox, hxR - hxL, hyB - hyBox);
+  // april tag visual
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(hxL + 20, hyBox + 40, 12, 12);
+  ctx.fillRect(hxR - 32, hyBox + 40, 12, 12);
+  // funnel walls (visual; exact geometry not verified)
+  const [pxBoxL, pyBox] = w2c(d - HUB.topHexHalf * 0.7, HUB.approxBoxTop);
+  const [pxBoxR]        = w2c(d + HUB.topHexHalf * 0.7, HUB.approxBoxTop);
+  const [pxTopL, pyTop] = w2c(d - HUB.topHexHalf, HUB.topY);
+  const [pxTopR]        = w2c(d + HUB.topHexHalf, HUB.topY);
+  ctx.fillStyle = 'rgba(150, 180, 220, 0.15)';
+  ctx.beginPath();
+  ctx.moveTo(pxBoxL, pyBox); ctx.lineTo(pxTopL, pyTop);
+  ctx.lineTo(pxTopR, pyTop); ctx.lineTo(pxBoxR, pyBox);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#7a90b0'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(pxBoxL, pyBox); ctx.lineTo(pxTopL, pyTop);
+  ctx.moveTo(pxBoxR, pyBox); ctx.lineTo(pxTopR, pyTop);
+  ctx.stroke();
+  // top opening (target, red)
+  ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(pxTopL, pyTop); ctx.lineTo(pxTopR, pyTop); ctx.stroke();
+  // effective region (apothem - ball_r)
+  const effHalf = HUB.topHexHalf - BALL.radius;
+  const [efL] = w2c(d - effHalf, HUB.topY);
+  const [efR] = w2c(d + effHalf, HUB.topY);
+  ctx.strokeStyle = '#ff8888'; ctx.lineWidth = 2;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(efL, pyTop - 8); ctx.lineTo(efR, pyTop - 8); ctx.stroke();
+  ctx.setLineDash([]);
+  // labels (only manual-confirmed numbers)
+  ctx.fillStyle = '#ff8888'; ctx.font = '11px "SF Mono", monospace';
+  ctx.fillText('72" / 1.83 m', pxTopR + 8, pyTop + 4);
+  ctx.fillStyle = '#888'; ctx.font = '9.5px "SF Mono", monospace';
+  ctx.fillText('41.7" (1.06 m) hex', pxTopL - 5, pyTop - 18);
+  ctx.fillStyle = '#ff8888';
+  ctx.fillText('eff ±' + effHalf.toFixed(2) + ' m', efR + 8, pyTop - 5);
+
+  // ── Shooter ──
+  const [sx, sy] = w2c(0, p.exit_h);
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(-p.hood_deg * Math.PI / 180);
+  ctx.fillStyle = '#4ac8ff'; ctx.strokeStyle = '#88ddff'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-14, 9); ctx.lineTo(-14, -9); ctx.lineTo(14, 0); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(74, 200, 255, 0.4)'; ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(70, 0); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+  ctx.fillStyle = '#4ac8ff'; ctx.font = '11px "SF Mono", monospace';
+  ctx.fillText(p.hood_deg.toFixed(0) + '°', sx - 18, sy + 24);
+
+  // Early-out if no solution
+  if (result.balls.length === 0) {
+    ctx.fillStyle = '#ff6464'; ctx.font = '14px "SF Mono", monospace';
+    ctx.fillText('⚠ no v can hit hub at this angle (too shallow or too steep)',
+                  W / 2 - 220, H / 2);
+    return;
+  }
+
+  // ── Mean trajectory curve (faint reference) ──
+  const ref = result.balls[Math.floor(result.balls.length / 2)].traj;
+  ctx.strokeStyle = 'rgba(120, 180, 255, 0.18)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ref.points.forEach((pt, i) => {
+    const [cx, cy] = w2c(pt.x, pt.y);
+    if (i === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+  });
+  ctx.stroke();
+
+  // ── Active balls (currently in flight) ──
+  let inflightCount = 0;
+  let landedCount = 0;
+  const hitsForStats = [];
+
+  for (const b of result.balls) {
+    const tInFlight = animT - b.launchTime;
+    const tofTotal = b.traj.hit ? b.traj.hit.t : (b.traj.points.at(-1).t);
+    if (tInFlight < 0) continue;  // not launched yet
+    if (tInFlight > tofTotal) {
+      // landed — count for stats and draw hit marker
+      landedCount++;
+      if (b.traj.hit) {
+        hitsForStats.push(b.traj.hit.x);
+        const inHex = Math.abs(b.traj.hit.x - d) <= effHalf;
+        const [hx, hy] = w2c(b.traj.hit.x, HUB.topY);
+        ctx.fillStyle = inHex ? '#4af07b' : '#ff5050';
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.arc(hx, hy + 1, 3, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      continue;
+    }
+    inflightCount++;
+    // draw ball at current position
+    const idx = Math.min(Math.floor(tInFlight / b.traj.dt), b.traj.points.length - 1);
+    const pt = b.traj.points[idx];
+    const [bx, by] = w2c(pt.x, pt.y);
+    const color = ballColor(b.idx, result.balls.length);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = '#fff5e0'; ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.arc(bx, by, BALL.radius * SCALE * 0.85, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // ── Update stats from current frame ──
+  updateInflightStats(inflightCount, landedCount, hitsForStats, p, result, animT);
+}
+
+// ─────────── Stats panel updates ───────────
+function updateStaticStats(result, p) {
+  const $ = id => document.getElementById(id);
+  const effHalf = HUB.topHexHalf - BALL.radius;
+  // Update left-sidebar auto-readouts (always, even if no scoring solution)
+  $('autoHood').textContent = p.hood_deg.toFixed(2);
+  $('autoV').textContent    = p.v_center.toFixed(2);
+  $('autoRpm').textContent  = p.fly_rpm.toFixed(0);
+  if (result.vCenter === null) {
+    ['vauto','peak','tof','entry','rof','spread','inflight','landed','scoreMiss','hitRate']
+      .forEach(id => $(id).textContent = '—');
+    return;
+  }
+  $('vauto').textContent = result.vCenter.toFixed(2);
+  const center = result.balls[Math.floor(result.balls.length / 2)];
+  $('peak').textContent = center.traj.peak.toFixed(2);
+  const tofs = result.balls.filter(b => b.traj.hit).map(b => b.traj.hit.t);
+  const meanTof = tofs.length ? tofs.reduce((a,b)=>a+b,0) / tofs.length : 0;
+  $('tof').textContent = meanTof.toFixed(3);
+  if (center.traj.hit) {
+    const ea = Math.atan2(-center.traj.hit.vy,
+                           Math.abs(center.traj.hit.vx)) * 180 / Math.PI;
+    $('entry').textContent = ea.toFixed(1);
+  } else $('entry').textContent = '—';
+  $('rof').textContent = (p.N / p.duration).toFixed(1);
+}
+function updateInflightStats(inflight, landed, hits, p, result, animT) {
+  const $ = id => document.getElementById(id);
+  const effHalf = HUB.topHexHalf - BALL.radius;
+  $('inflight').textContent = inflight;
+  $('landed').textContent = landed + '/' + result.balls.length;
+  let scored = 0, missed = 0;
+  for (const x of hits) {
+    if (Math.abs(x - p.distance) <= effHalf) scored++; else missed++;
+  }
+  $('scoreMiss').textContent = scored + ' / ' + missed;
+  const total = scored + missed;
+  if (total > 0) {
+    const rate = scored / total * 100;
+    const el = $('hitRate');
+    el.textContent = rate.toFixed(1) + '%';
+    el.className = rate >= 90 ? 'v hit-yes' : (rate >= 60 ? 'v hit-some' : 'v hit-no');
+  } else {
+    $('hitRate').textContent = '—';
+  }
+  if (hits.length > 1) {
+    $('spread').textContent =
+      (Math.max(...hits) - Math.min(...hits)).toFixed(3);
+  } else {
+    $('spread').textContent = hits.length === 1 ? '0.000' : '—';
+  }
+  // progress bar
+  const maxTOF = result.balls.length ? Math.max(...result.balls.map(
+    b => b.traj.hit ? b.traj.hit.t : 2)) : 2;
+  const totalDur = p.duration + maxTOF;
+  $('progress').style.width = Math.min(100, animT / totalDur * 100) + '%';
+}
+
+// ─────────── State & loop ───────────
+const state = { params: null, result: null, animT: 0, lastFrame: 0 };
+// Fixed constants
+const FUEL_CD = 0.50;
+const EXIT_H  = 0.50;
+
+// V3.1 centered-landing sweep (raw values, max |hit_x − d| < 1 mm).
+//
+// Polynomial fit errors of ±0.5°/±0.02 m/s amplify into ±5–10 cm hit_x shifts at
+// low arc, so for visualization we use the raw table + linear interpolation
+// instead of the polynomial (kept in lookup_polynomial.json for RIO deploy where
+// ±10 cm within the 45.5 cm hex effective half-width is acceptable).
+//
+// Cost: w_entry(1)·(90-entry) + w_v(3)·v² + w_tof(1.1)·TOF²
+//   w_tof = w_v·v²·(σ_x_vortex/R_eff)² ≈ 1.14, calibrated so the TOF² term
+//   represents vortex-shedding dispersion (σ_x ≈ 0.04·T² m at Re ≈ 6×10⁴;
+//   Darbois-Texier, NJP 2016). At this scale it only acts as a tie-breaker —
+//   never overrides the noise-robust high-arc region.
+const V3_TABLE = [
+  // d (m),  hood (°),  v_exit (m/s),  flywheel RPM
+  [1.50, 72.807, 6.1751, 1416],
+  [1.75, 70.729, 6.3238, 1450],
+  [2.00, 68.820, 6.4776, 1485],
+  [2.25, 67.073, 6.6362, 1521],
+  [2.50, 65.482, 6.7991, 1559],
+  [2.75, 64.037, 6.9655, 1597],
+  [3.00, 62.726, 7.1345, 1636],
+  [3.25, 61.537, 7.3056, 1675],
+  [3.50, 60.458, 7.4780, 1714],
+  [3.75, 59.467, 7.6509, 1754],
+  [4.00, 58.574, 7.8246, 1794],
+  [4.25, 57.760, 7.9980, 1833],
+  [4.50, 57.014, 8.1715, 1873],
+  [4.75, 56.330, 8.3447, 1913],
+  [5.00, 55.700, 8.5174, 1953],
+];
+
+function lerpV3(d) {
+  if (d <= V3_TABLE[0][0]) return { hood: V3_TABLE[0][1], v: V3_TABLE[0][2], rpm: V3_TABLE[0][3] };
+  if (d >= V3_TABLE[V3_TABLE.length-1][0]) {
+    const r = V3_TABLE[V3_TABLE.length-1];
+    return { hood: r[1], v: r[2], rpm: r[3] };
+  }
+  for (let i = 0; i < V3_TABLE.length - 1; i++) {
+    const [d0, h0, v0, r0] = V3_TABLE[i];
+    const [d1, h1, v1, r1] = V3_TABLE[i+1];
+    if (d <= d1) {
+      const t = (d - d0) / (d1 - d0);
+      return { hood: h0 + t * (h1 - h0),
+               v:    v0 + t * (v1 - v0),
+               rpm:  r0 + t * (r1 - r0) };
+    }
+  }
+}
+const polyHood  = d => lerpV3(d).hood;
+const polyVExit = d => lerpV3(d).v;
+const polyRpm   = d => lerpV3(d).rpm;
+
+function getParams() {
+  const d = parseFloat(document.getElementById('d').value);
+  return {
+    distance:    d,
+    hood_deg:    polyHood(d),
+    v_center:    polyVExit(d),
+    fly_rpm:     polyRpm(d),
+    exit_h:      EXIT_H,
+    N:           100,    // fixed: 100 balls
+    duration:    3.0,    // fixed: 3 sec burst
+    vJitterPct:  3.0,    // fixed: ±3% v noise
+    angleJitter: 1.0,    // fixed: ±1° angle noise
+    Cd:          FUEL_CD,
+  };
+}
+function recompute() {
+  state.params = getParams();
+  state.result = simulateBurst(state.params);
+  state.animT = 0;
+  updateStaticStats(state.result, state.params);
+}
+function loop(now) {
+  if (!state.lastFrame) state.lastFrame = now;
+  const dtReal = (now - state.lastFrame) / 1000;
+  state.lastFrame = now;
+  const speed = 1;  // locked at 1× real time
+  let maxTOF = 2;
+  if (state.result.balls.length > 0) {
+    maxTOF = Math.max(...state.result.balls.map(
+      b => b.traj.hit ? b.traj.hit.t : 2));
+  }
+  const totalCycle = state.params.duration + maxTOF + 1.5;
+  state.animT += dtReal * speed;
+  if (state.animT >= totalCycle) state.animT = 0;
+  draw(state.params, state.result, state.animT);
+  requestAnimationFrame(loop);
+}
+
+// ─────────── UI bindings (only distance slider remains) ───────────
+document.getElementById('d').addEventListener('input', (e) => {
+  document.getElementById('dVal').textContent = parseFloat(e.target.value).toFixed(2) + ' m';
+  recompute();
+});
+recompute();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

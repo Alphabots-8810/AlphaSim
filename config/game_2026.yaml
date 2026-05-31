@@ -1,0 +1,40 @@
+# FRC 2026 REBUILT - HUB and FUEL parameters
+# Sourced from: 2026 Game Manual + TE-26300 build instructions
+# Verified 2026-05-23
+
+hub:
+  # Plate hex hole (actual scoring entry, into the HUB interior)
+  # TE-26302 drawing: 41.727" across-flats
+  bottom_hex_across_flats_m: 1.060   # 41.727 in
+
+  # Top of funnel (manual: "front edge of opening 72in off carpet")
+  # Funnel extends 19.528" above plate, so plate top is at ~52.5"
+  # Funnel widens upward - top hex larger than bottom hex
+  top_height_m: 1.829                # 72 in (front edge from carpet)
+  bottom_height_m: 1.333             # 72 - 19.528 = 52.47 in (plate hex)
+
+  # Conservative target: use bottom hex size at the top height.
+  # Real funnel top is wider so a ball entering this circle WILL score.
+  # This UNDERESTIMATES success rate => safe for tuning.
+  target_height_m: 1.829             # use top of funnel as "must clear this"
+  target_across_flats_m: 1.060       # but treat as if bottom hex - conservative
+
+  # Hub structure footprint (47" x 47" square base, ignored for now -
+  # only matters if shooter is very close)
+  base_size_m: 1.194
+
+ball:
+  # FUEL: 5.91in (15.0cm) high-density foam ball
+  diameter_m: 0.150
+  radius_m: 0.075
+  mass_kg: 0.215                     # midpoint of 0.203-0.227 (0.448-0.500 lb)
+
+  # Aerodynamic coefficients - INITIAL GUESSES, calibrate from real shots
+  drag_coefficient: 0.5              # smooth sphere = 0.47, foam ball likely higher
+  # Magnus lift coefficient stub - filled in stage 2
+  # Cl typically 0.1-0.3 for spin parameter S=0.1-0.5
+  magnus_cl: 0.0                     # stage 1: no Magnus
+
+environment:
+  air_density_kg_m3: 1.225           # sea level, 15°C
+  gravity_m_s2: 9.81

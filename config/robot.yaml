@@ -1,0 +1,61 @@
+# Robot shooter geometry and motor specs
+# UPDATE THESE with measured values from your actual robot
+
+shooter:
+  # Where the ball leaves the shooter, in robot-frame coordinates.
+  # x measured from robot center (positive = forward toward hub).
+  # y measured from carpet.
+  exit_height_m: 0.60                # TBD - measure on robot
+  exit_forward_offset_m: 0.30        # TBD - distance from robot center to exit point
+
+  # Hood angle range (relative to horizontal at exit)
+  hood_angle_min_deg: 25.0
+  hood_angle_max_deg: 85.0
+
+  # 4-ball-wide dumper: 一坨球横向半宽 (meters).
+  # 4 球 ~0.15m 直径 + 间隙 ≈ 0.30 m 一坨,半宽 0.15 m.
+  # 加上 shot-to-shot 时间散布,实测可能更大.先 0.15 m 起步,calibrate 调.
+  ball_clump_half_width_m: 0.15
+
+# Cost function weights (per-optimization, can override on CLI)
+# V3.1 calibration (physics-derived w_tof):
+#   - foam 球不弹 rim → w_entry 几乎关掉
+#   - w_v_exit 强调节能 (v² 惩罚)
+#   - w_tof 现在反映 vortex-shedding dispersion (NOT a heuristic anymore):
+#     σ_x_vortex ≈ 0.04·T² m (Darbois-Texier et al., NJP 2016, knuckleball physics)
+#     w_tof = w_v · v_design² · (σ_x/R_eff)² = 3 · 49 · (0.04/0.455)² = 1.14 → 取 1.1
+#     (σ_x 估计有 ±factor 2 不确定性 from Cl' RMS 范围 0.05-0.10,所以 sig fig 不应过精)
+#     在 V3.1 plateau 内只作为 tie-breaker,不主导
+#   注:V3 原值 w_tof=200 是 ungrounded guess,把算法推到低弧度 region 导致
+#      θ-noise 散布放大 (d=5m hit rate 94%, spread 1.19m vs V3.1 100%/0.69m)
+cost_weights:
+  w_entry_angle: 1.0    # nearly off (foam ball, entry angle 不重要)
+  w_v_exit: 3.0         # 强调节能 (v_exit² penalty)
+  w_tof: 1.1            # vortex-shedding dispersion calibration (see notes above)
+
+flywheel:
+  # Main flywheel (top roller in dual-roller terms)
+  diameter_m: 0.1016                 # 4 inch Colson (typical), TBD
+  motor: "Kraken X60"
+  motor_free_rpm: 6000
+  gear_ratio: 1.0                    # flywheel_rpm = motor_rpm / gear_ratio (1.0 = direct drive)
+  max_flywheel_rpm: 6000             # = motor_free_rpm / gear_ratio
+  # Wheel-ball slip when in contact (0 = no slip, 1 = full slip)
+  slip_factor: 0.18                  # 15-20% typical for compliant wheels on foam
+
+hood_roller:
+  # Back-plate roller on hood (bottom roller in dual-roller terms)
+  diameter_m: 0.0508                 # 2 inch typical, TBD
+  motor: "Kraken X60"
+  motor_free_rpm: 6000
+  gear_ratio: 1.0                    # TBD - user said "齿比还没算"
+  max_flywheel_rpm: 6000
+  slip_factor: 0.18
+
+# Operational distance range to sweep / generate lookup
+# HUB is 4.03 m from alliance wall; alliance zone is 4.03 m deep.
+# Big-dumper realistic shooting range = 1.5 m (close) to ~5 m (from neutral zone edge).
+operating_distance_m:
+  min: 1.5
+  max: 5.0
+  step: 0.25

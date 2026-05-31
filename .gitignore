@@ -1,0 +1,15 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Java compile artifacts
+*.class
+
+# macOS
+.DS_Store
+
+# Generated build artifacts
+alpha-sim-shooter-handoff.zip
+robust_valid_region.png
