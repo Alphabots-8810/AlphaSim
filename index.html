@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AlphaSim — FRC 2026 Shooter Aim</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: radial-gradient(1200px 600px at 50% -10%, #16213a 0%, #0b0f1a 60%);
+    color: #e6e9f0; font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 6vh 5vw;
+  }
+  .wrap { max-width: 760px; width: 100%; }
+  h1 { font-size: clamp(2rem, 6vw, 3rem); margin: 0 0 .2em; letter-spacing: -.02em; }
+  .tag { color: #7fd1c4; font-weight: 600; }
+  .lede { color: #aab3c5; font-size: 1.05rem; margin: 0 0 2rem; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
+  a.card {
+    display: block; text-decoration: none; color: inherit;
+    background: #131a2b; border: 1px solid #25304a; border-radius: 14px; padding: 20px 22px;
+    transition: border-color .15s, transform .15s, background .15s;
+  }
+  a.card:hover { border-color: #4a6cf7; transform: translateY(-2px); background: #16203a; }
+  a.card h2 { margin: 0 0 .3em; font-size: 1.15rem; }
+  a.card p { margin: 0; color: #9aa4b8; font-size: .92rem; }
+  .icon { font-size: 1.5rem; margin-bottom: .4rem; }
+  .meta { margin-top: 2.2rem; color: #6b7488; font-size: .85rem; }
+  .meta code { background:#1b2236; padding:.1em .4em; border-radius:5px; color:#c4cce0; }
+  .meta a { color:#7fa0ff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎯 Alpha<span class="tag">Sim</span></h1>
+  <p class="lede">FRC 2026 REBUILT 投手自动瞄准管线 —— 距离 → hood 角度 + flywheel 线速度。
+  闭式函数,机器人代码即插即用,比赛现场只调一个系数 <code style="background:#1b2236;padding:.1em .4em;border-radius:5px">kSpeed</code>。</p>
+
+  <div class="cards">
+    <a class="card" href="shooter_sim.html">
+      <div class="icon">🕹️</div>
+      <h2>Alpha Sim 模拟器</h2>
+      <p>交互式弹道模拟器:拖 distance / hood slider,看 100 球 burst 命中率实时变化。</p>
+    </a>
+    <a class="card" href="research_report.html">
+      <div class="icon">📄</div>
+      <h2>研究报告</h2>
+      <p>物理模型 → 算法演化 → 公式与系数怎么算出来的(§5 含交付函数 + 部署片段)。</p>
+    </a>
+  </div>
+
+  <p class="meta">
+    源码 / 交付函数(Java &amp; Python)/ 系数 JSON 见
+    <a href="https://github.com/Alphabots-8810/AlphaSim">GitHub 仓库</a>。
+    出球高度按 <code>0.50 m</code> 标定 · V3.1 (w_tof=1.1) · MIT License · FRC Team 8810 Alphabots
+  </p>
+</div>
+</body>
+</html>

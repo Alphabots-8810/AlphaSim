@@ -7,6 +7,8 @@
 > 出球高度按 **0.50 m** 标定(V3.1:centered-landing + 物理校准 cost,
 > `w_tof=1.1` 由 vortex-shedding 散布推导)。
 
+**🔗 在线**(GitHub Pages):报告与 Alpha Sim 模拟器 → **https://alphabots-8810.github.io/AlphaSim/**
+
 ## 直接拿来用
 
 最省事:复制 [`handoff/ShooterAim.java`](handoff/ShooterAim.java)(或 [`shooter_aim.py`](handoff/shooter_aim.py))进机器人项目。
@@ -56,6 +58,10 @@ tests/      28 pytest
 ```bash
 python scripts/generate_coefficients.py --shooter-height <新高度>
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE). © 2026 Alphabots — FRC Team 8810.
 
 ---
 FRC Team 8810 · Alphabots
