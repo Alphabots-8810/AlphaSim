@@ -65,6 +65,7 @@ def main():
             seed=seed,
             air_density=game.environment.air_density_kg_m3,
             gravity=game.environment.gravity_m_s2,
+            ball_clump_half_width_m=robot.shooter.ball_clump_half_width_m,
         )
 
     def solve_h(d):

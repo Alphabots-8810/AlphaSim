@@ -49,9 +49,11 @@ class ShooterMountConfig:
 
 @dataclass
 class CostWeights:
-    w_entry_angle: float = 10.0
-    w_v_exit: float = 0.5
-    w_tof: float = 70.0
+    # V3.1 physics-calibrated defaults — keep in sync with config/robot.yaml
+    # (which documents the w_tof vortex-shedding derivation).
+    w_entry_angle: float = 1.0
+    w_v_exit: float = 3.0
+    w_tof: float = 1.1
 
 
 @dataclass

@@ -16,7 +16,7 @@ What it does:
   3. Print coefficients + fit RMSE, and emit ready-to-paste Java/Python.
 
 Usage:
-    .venv/bin/python scripts/generate_coefficients.py                       # 0.46 m
+    .venv/bin/python scripts/generate_coefficients.py                       # robot.yaml exit height (0.50)
     .venv/bin/python scripts/generate_coefficients.py --shooter-height 0.55
     .venv/bin/python scripts/generate_coefficients.py --slip 0.15 --dstep 0.1
 """
@@ -40,8 +40,11 @@ from src.physics.shooter import DualRoller, Roller  # noqa: E402
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--shooter-height', type=float, default=0.46,
-                   help='ball exit height above carpet (m). Default 0.46 = shipped baseline.')
+    p.add_argument('--shooter-height', type=float, default=None,
+                   help='ball exit height above carpet (m). Default: robot.yaml '
+                        'shooter.exit_height_m — the single source of truth, so a bare '
+                        'rerun reproduces the shipped coefficients instead of silently '
+                        'reverting to an old height.')
     p.add_argument('--slip', type=float, default=None,
                    help='wheel→ball slip fraction for v_fly. Default: robot.yaml flywheel slip_factor.')
     p.add_argument('--game-config', default=str(REPO_ROOT / 'config' / 'game_2026.yaml'))
@@ -59,7 +62,8 @@ def main() -> int:
     dmin = args.dmin if args.dmin is not None else robot.operating_distance_m.min
     dmax = args.dmax if args.dmax is not None else robot.operating_distance_m.max
     slip = args.slip if args.slip is not None else robot.flywheel.slip_factor
-    exit_h = args.shooter_height
+    exit_h = (args.shooter_height if args.shooter_height is not None
+              else robot.shooter.exit_height_m)
 
     target = HexTarget(across_flats_m=game.hub.target_across_flats_m,
                        height_m=game.hub.target_height_m)

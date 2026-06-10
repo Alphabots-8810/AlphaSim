@@ -5,7 +5,7 @@ shooter:
   # Where the ball leaves the shooter, in robot-frame coordinates.
   # x measured from robot center (positive = forward toward hub).
   # y measured from carpet.
-  exit_height_m: 0.60                # TBD - measure on robot
+  exit_height_m: 0.50                # 实测 2026-05-31(handoff/lookup_polynomial.json 系数即按此高度烘焙)
   exit_forward_offset_m: 0.30        # TBD - distance from robot center to exit point
 
   # Hood angle range (relative to horizontal at exit)

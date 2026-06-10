@@ -134,9 +134,9 @@ def solve_shot(
     theta_resolution: int = 60,
     air_density: float = 1.225,
     gravity: float = 9.81,
-    w_entry_angle: float = 10.0,
-    w_v_exit: float = 0.5,
-    w_tof: float = 70.0,
+    w_entry_angle: float = 1.0,
+    w_v_exit: float = 3.0,
+    w_tof: float = 1.1,
     ball_clump_half_width_m: float = 0.0,
 ) -> ShotSolution:
     """Find (v_exit, θ) such that ball lands at hub center with best entry quality.
@@ -146,8 +146,11 @@ def solve_shot(
       - v_exit term: penalize unnecessary motor stress
       - TOF² term: dispersion proxy — longer flight amplifies input errors → wider scatter
 
-    Default weights chosen so each term is O(100) across typical FRC distances 2-7 m;
-    tune w_tof higher if your shooter has noisy v/θ control (more scatter sensitivity).
+    Defaults are the V3.1 physics-calibrated weights (see config/robot.yaml for the
+    derivation): entry nearly off (foam ball doesn't bounce off the rim), v² for
+    energy, w_tof from vortex-shedding dispersion (σ_x ≈ 0.04·T²; Darbois-Texier,
+    NJP 2016). Beware large w_tof values: they push the solution into the low-arc
+    region where θ-noise scatter explodes (the original w_tof=200 mistake).
     """
     v_top_max = shooter.top.surface_speed_ms(shooter.top.max_flywheel_rpm)
     v_bot_max = shooter.bottom.surface_speed_ms(shooter.bottom.max_flywheel_rpm)
@@ -229,17 +232,18 @@ def solve_shot(
             options={'xatol': 1e-3},
         )
         if res.fun < cost(th_best, v_best, traj_best):
-            th_best = float(res.x)
-            v_best = _v_for_centered_landing(
-                distance, th_best, exit_height, target.height_m,
+            v_refined = _v_for_centered_landing(
+                distance, float(res.x), exit_height, target.height_m,
                 ball_mass, ball_radius, drag_coefficient,
                 v_lo, v_hi, air_density, gravity,
             )
-            traj_best = simulate_trajectory(
-                v_best, th_best, exit_height, target.height_m,
-                ball_mass, ball_radius, drag_coefficient,
-                air_density=air_density, gravity=gravity,
-            )
+            if v_refined is not None:   # keep the grid winner if the re-solve falls through
+                th_best, v_best = float(res.x), v_refined
+                traj_best = simulate_trajectory(
+                    v_best, th_best, exit_height, target.height_m,
+                    ball_mass, ball_radius, drag_coefficient,
+                    air_density=air_density, gravity=gravity,
+                )
 
     rpm_top, rpm_bottom = shooter.rpms_for_exit_velocity(v_best, omega_spin=0.0)
     over_limit = (

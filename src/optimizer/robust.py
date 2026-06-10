@@ -22,8 +22,11 @@ from src.physics.trajectory import TrajectoryResult, simulate_trajectory
 
 
 def is_scoring(v, theta_deg, distance, exit_h, ball_mass, ball_r, Cd, target,
-               air_density=1.225, gravity=9.81):
-    """True if (v, θ) trajectory lands within effective hex window."""
+               air_density=1.225, gravity=9.81, extra_margin=0.0):
+    """True if (v, θ) trajectory lands within effective hex window.
+
+    extra_margin shrinks the window further — e.g. the 4-ball clump half-width,
+    so all balls of a dumper volley fit, matching solve_shot's margin convention."""
     if v <= 0 or theta_deg <= 0 or theta_deg >= 90:
         return False
     traj = simulate_trajectory(
@@ -31,7 +34,7 @@ def is_scoring(v, theta_deg, distance, exit_h, ball_mass, ball_r, Cd, target,
         ball_mass, ball_r, Cd,
         air_density=air_density, gravity=gravity,
     )
-    return traj.hit and abs(traj.hit_x - distance) <= (target.apothem - ball_r)
+    return traj.hit and abs(traj.hit_x - distance) <= (target.apothem - ball_r - extra_margin)
 
 
 def _direction_margin(v0, th0, dv_unit, dth_unit, args,
@@ -141,12 +144,13 @@ def compute_valid_mask(
     grid_n: int,
     air_density: float = 1.225,
     gravity: float = 9.81,
+    ball_clump_half_width_m: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return (mask, vs, thetas). mask[i, j] = True if (vs[i], thetas[j]) scores."""
     thetas = np.linspace(*theta_range_deg, grid_n)
     vs = np.linspace(*v_range_ms, grid_n)
     mask = np.zeros((grid_n, grid_n), dtype=bool)
-    eff_radius = target.apothem - ball_radius
+    eff_radius = target.apothem - ball_radius - ball_clump_half_width_m
 
     for i, v in enumerate(vs):
         for j, th in enumerate(thetas):
@@ -224,8 +228,12 @@ def solve_shot_robust(
     seed: Optional[tuple[float, float]] = None,
     air_density: float = 1.225,
     gravity: float = 9.81,
+    ball_clump_half_width_m: float = 0.0,
 ) -> RobustShotSolution:
-    """Find the (v, θ) point most robust to noise, in the valid scoring region."""
+    """Find the (v, θ) point most robust to noise, in the valid scoring region.
+
+    ball_clump_half_width_m shrinks the scoring window like solve_shot's 4-ball
+    clump margin, so both solvers agree on what counts as "all balls fit"."""
     v_top_max = shooter.top.surface_speed_ms(shooter.top.max_flywheel_rpm)
     v_bot_max = shooter.bottom.surface_speed_ms(shooter.bottom.max_flywheel_rpm)
     v_mech_max = min(v_top_max, v_bot_max)
@@ -238,6 +246,7 @@ def solve_shot_robust(
         distance, exit_height, ball_mass, ball_radius, drag_coefficient, target,
         theta_range_deg, v_range_ms, grid_n,
         air_density=air_density, gravity=gravity,
+        ball_clump_half_width_m=ball_clump_half_width_m,
     )
 
     if not mask.any():
@@ -256,7 +265,8 @@ def solve_shot_robust(
     v_opt, theta_opt = float(vs[i]), float(thetas[j])
 
     scoring_args = (distance, exit_height, ball_mass, ball_radius,
-                    drag_coefficient, target, air_density, gravity)
+                    drag_coefficient, target, air_density, gravity,
+                    ball_clump_half_width_m)
 
     # NOTE on `seed` param: continuity seeding was tried but found to lock the
     # optimizer into suboptimal high-arc plateaus across distance sweeps (scipy

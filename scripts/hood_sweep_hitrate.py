@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Sweep hood angle at fixed distance, evaluate 100-ball burst hit rate.
 
-Reproduces Alpha Sim's burst physics (Cd=0.5, exit=0.46m, ±3%v, ±1°θ, seed=42)
-to check whether the V3 algorithm's chosen (hood, v) is hit-rate-optimal under
-mechanical noise.
+Reproduces Alpha Sim's burst physics (Cd=0.5, exit=0.50m, ±3%v, ±1°θ, seed=42)
+to check whether the shipped V3.1 table's (hood, v) is hit-rate-optimal under
+mechanical noise. (This is the audit tool that originally exposed the V3
+w_tof=200 low-arc mistake; constants/table track shooter_sim.html.)
 
 Run:
     .venv/bin/python scripts/hood_sweep_hitrate.py --distance 3.0
@@ -22,8 +23,8 @@ from scipy.optimize import brentq
 from src.physics.trajectory import simulate_trajectory
 
 
-# Match Alpha Sim constants exactly (shooter_sim.html lines 158-159, 477-478)
-EXIT_H = 0.46
+# Match Alpha Sim constants exactly (shooter_sim.html: HUB/BALL consts + EXIT_H)
+EXIT_H = 0.50
 TARGET_H = 1.829
 CD = 0.50
 RHO = 1.225
@@ -151,35 +152,35 @@ def main():
     print(f"BEST in sweep:    hood = {best_h:.2f}°, v = {best_v:.3f} m/s,"
           f" hit rate = {best_rate*100:.1f}%")
 
-    # V3 algorithm's pick (from V3_TABLE in sim — verified hit_x ±1mm)
-    V3 = {
-        1.50: (64.154, 5.9332),
-        1.75: (60.593, 6.1394),
-        2.00: (57.352, 6.3651),
-        2.25: (54.712, 6.5910),
-        2.50: (52.482, 6.8163),
-        2.75: (50.571, 7.0402),
-        3.00: (48.886, 7.2640),
-        3.25: (47.467, 7.4819),
-        3.50: (46.197, 7.6987),
-        3.75: (45.075, 7.9128),
-        4.00: (44.077, 8.1241),
-        4.25: (43.185, 8.3327),
-        4.50: (42.384, 8.5386),
-        4.75: (41.660, 8.7419),
-        5.00: (41.004, 8.9429),
+    # Shipped V3.1 pick (V3_TABLE in shooter_sim.html — centered landing, exit 0.50 m)
+    V31 = {
+        1.50: (72.807, 6.1751),
+        1.75: (70.729, 6.3238),
+        2.00: (68.820, 6.4776),
+        2.25: (67.073, 6.6362),
+        2.50: (65.482, 6.7991),
+        2.75: (64.037, 6.9655),
+        3.00: (62.726, 7.1345),
+        3.25: (61.537, 7.3056),
+        3.50: (60.458, 7.4780),
+        3.75: (59.467, 7.6509),
+        4.00: (58.574, 7.8246),
+        4.25: (57.760, 7.9980),
+        4.50: (57.014, 8.1715),
+        4.75: (56.330, 8.3447),
+        5.00: (55.700, 8.5174),
     }
-    if d in V3:
-        h_v3, v_v3 = V3[d]
-        rate_v3, spr_v3, tof_v3, _ = burst_hit_rate(d, h_v3, v_v3, N=args.n_balls)
-        print(f"V3 algo pick:     hood = {h_v3:.2f}°, v = {v_v3:.3f} m/s,"
-              f" hit rate = {rate_v3*100:.1f}%, spread = {spr_v3:.3f} m, TOF = {tof_v3:.3f}s")
-        gap = best_rate - rate_v3
+    if d in V31:
+        h_v31, v_v31 = V31[d]
+        rate_v31, spr_v31, tof_v31, _ = burst_hit_rate(d, h_v31, v_v31, N=args.n_balls)
+        print(f"V3.1 table pick:  hood = {h_v31:.2f}°, v = {v_v31:.3f} m/s,"
+              f" hit rate = {rate_v31*100:.1f}%, spread = {spr_v31:.3f} m, TOF = {tof_v31:.3f}s")
+        gap = best_rate - rate_v31
         if gap > 0.02:
-            print(f"\n>>> V3 algorithm is suboptimal by {gap*100:.1f} pp"
-                  f" (best {best_rate*100:.1f}% vs V3 {rate_v3*100:.1f}%)")
+            print(f"\n>>> V3.1 table is suboptimal by {gap*100:.1f} pp"
+                  f" (best {best_rate*100:.1f}% vs V3.1 {rate_v31*100:.1f}%)")
         else:
-            print(f"\nV3 algorithm pick is within {gap*100:.1f} pp of best in sweep.")
+            print(f"\nV3.1 table pick is within {gap*100:.1f} pp of best in sweep.")
 
 
 if __name__ == '__main__':
