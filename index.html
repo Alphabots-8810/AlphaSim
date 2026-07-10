@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -36,26 +36,26 @@
 <body>
 <div class="wrap">
   <h1>🎯 Alpha<span class="tag">Sim</span></h1>
-  <p class="lede">FRC 2026 REBUILT 投手自动瞄准管线 —— 距离 → hood 角度 + flywheel 线速度。
-  闭式函数,机器人代码即插即用,比赛现场只调一个系数 <code style="background:#1b2236;padding:.1em .4em;border-radius:5px">kSpeed</code>。</p>
+  <p class="lede">FRC 2026 REBUILT shooter auto-aim pipeline — distance → hood angle + flywheel surface speed.
+  A closed-form function that drops straight into robot code; at competition you tune a single coefficient, <code style="background:#1b2236;padding:.1em .4em;border-radius:5px">kSpeed</code>.</p>
 
   <div class="cards">
     <a class="card" href="shooter_sim.html">
       <div class="icon">🕹️</div>
-      <h2>Alpha Sim 模拟器</h2>
-      <p>交互式弹道模拟器:拖 distance / hood slider,看 100 球 burst 命中率实时变化。</p>
+      <h2>Alpha Sim Simulator</h2>
+      <p>Interactive ballistics simulator: drag the distance / hood sliders and watch the 100-ball burst hit rate update live.</p>
     </a>
     <a class="card" href="research_report.html">
       <div class="icon">📄</div>
-      <h2>研究报告</h2>
-      <p>物理模型 → 算法演化 → 公式与系数怎么算出来的(§5 含交付函数 + 部署片段)。</p>
+      <h2>Research Report</h2>
+      <p>Physics model → algorithm evolution → how the formulas and coefficients were derived (§5 includes the delivered function + deployment snippets).</p>
     </a>
   </div>
 
   <p class="meta">
-    源码 / 交付函数(Java &amp; Python)/ 系数 JSON 见
-    <a href="https://github.com/Alphabots-8810/AlphaSim">GitHub 仓库</a>。
-    出球高度按 <code>0.50 m</code> 标定 · V3.1 (w_tof=1.1) · MIT License · FRC Team 8810 Alphabots
+    Source / delivered functions (Java &amp; Python) / coefficient JSON in the
+    <a href="https://github.com/Alphabots-8810/AlphaSim">GitHub repo</a>.
+    Exit height calibrated at <code>0.50 m</code> · V3.1 (w_tof=1.1) · MIT License · FRC Team 8810 Alphabots
   </p>
 </div>
 </body>

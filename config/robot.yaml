@@ -5,32 +5,34 @@ shooter:
   # Where the ball leaves the shooter, in robot-frame coordinates.
   # x measured from robot center (positive = forward toward hub).
   # y measured from carpet.
-  exit_height_m: 0.50                # 实测 2026-05-31(handoff/lookup_polynomial.json 系数即按此高度烘焙)
+  exit_height_m: 0.50                # measured 2026-05-31 (handoff/lookup_polynomial.json coefficients are baked at this height)
   exit_forward_offset_m: 0.30        # TBD - distance from robot center to exit point
 
   # Hood angle range (relative to horizontal at exit)
   hood_angle_min_deg: 25.0
   hood_angle_max_deg: 85.0
 
-  # 4-ball-wide dumper: 一坨球横向半宽 (meters).
-  # 4 球 ~0.15m 直径 + 间隙 ≈ 0.30 m 一坨,半宽 0.15 m.
-  # 加上 shot-to-shot 时间散布,实测可能更大.先 0.15 m 起步,calibrate 调.
+  # 4-ball-wide dumper: lateral half-width of a ball clump (meters).
+  # 4 balls of ~0.15 m diameter + gaps ≈ 0.30 m per clump, half-width 0.15 m.
+  # With shot-to-shot timing spread the real value may be larger; start at 0.15 m and calibrate.
   ball_clump_half_width_m: 0.15
 
 # Cost function weights (per-optimization, can override on CLI)
 # V3.1 calibration (physics-derived w_tof):
-#   - foam 球不弹 rim → w_entry 几乎关掉
-#   - w_v_exit 强调节能 (v² 惩罚)
-#   - w_tof 现在反映 vortex-shedding dispersion (NOT a heuristic anymore):
+#   - foam balls don't bounce off the rim → w_entry nearly off
+#   - w_v_exit emphasizes energy saving (v² penalty)
+#   - w_tof now reflects vortex-shedding dispersion (NOT a heuristic anymore):
 #     σ_x_vortex ≈ 0.04·T² m (Darbois-Texier et al., NJP 2016, knuckleball physics)
-#     w_tof = w_v · v_design² · (σ_x/R_eff)² = 3 · 49 · (0.04/0.455)² = 1.14 → 取 1.1
-#     (σ_x 估计有 ±factor 2 不确定性 from Cl' RMS 范围 0.05-0.10,所以 sig fig 不应过精)
-#     在 V3.1 plateau 内只作为 tie-breaker,不主导
-#   注:V3 原值 w_tof=200 是 ungrounded guess,把算法推到低弧度 region 导致
-#      θ-noise 散布放大 (d=5m hit rate 94%, spread 1.19m vs V3.1 100%/0.69m)
+#     w_tof = w_v · v_design² · (σ_x/R_eff)² = 3 · 49 · (0.04/0.455)² = 1.14 → use 1.1
+#     (the σ_x estimate carries ±factor-2 uncertainty from the Cl' RMS range 0.05-0.10,
+#      so don't over-read the significant figures)
+#     within the V3.1 plateau it acts only as a tie-breaker, never dominates
+#   Note: the original V3 value w_tof=200 was an ungrounded guess; it pushed the algorithm
+#      into the low-arc region and amplified θ-noise dispersion
+#      (d=5m hit rate 94%, spread 1.19m vs V3.1 100%/0.69m)
 cost_weights:
-  w_entry_angle: 1.0    # nearly off (foam ball, entry angle 不重要)
-  w_v_exit: 3.0         # 强调节能 (v_exit² penalty)
+  w_entry_angle: 1.0    # nearly off (foam ball, entry angle barely matters)
+  w_v_exit: 3.0         # emphasize energy saving (v_exit² penalty)
   w_tof: 1.1            # vortex-shedding dispersion calibration (see notes above)
 
 flywheel:
@@ -48,7 +50,7 @@ hood_roller:
   diameter_m: 0.0508                 # 2 inch typical, TBD
   motor: "Kraken X60"
   motor_free_rpm: 6000
-  gear_ratio: 1.0                    # TBD - user said "齿比还没算"
+  gear_ratio: 1.0                    # TBD - gear ratio not decided yet per the mechanical team
   max_flywheel_rpm: 6000
   slip_factor: 0.18
 

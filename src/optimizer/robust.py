@@ -169,7 +169,7 @@ def find_robust_center(
 ) -> Optional[tuple[int, int, float]]:
     """Return (i, j, dist) — grid indices of the most-robust cell, with energy
     tiebreak: among all cells whose Chebyshev distance is within
-    `near_max_cells` of the global max (i.e. "差不多" robust), prefer the
+    `near_max_cells` of the global max (i.e. "about equally" robust), prefer the
     LOWEST v_exit (lowest row index, since vs is ascending).
 
     Why ≤1 cell tolerance: when two plateaus (high-arc vs low-arc) have margins
