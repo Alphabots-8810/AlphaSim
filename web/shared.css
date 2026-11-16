@@ -1,0 +1,99 @@
+/* AlphaSim shared tokens and base styles (simulator, report, landing page).
+   Colour carries meaning and is used for nothing else:
+     fuel   = the ball and its path          score = scores / usable opening
+     miss   = misses                         accent = things you can operate
+   The four src-* colours identify error sources wherever they appear. */
+:root {
+  color-scheme: dark;
+  --ink-0: #12102a;            /* page */
+  --ink-1: #1a1738;            /* panels */
+  --ink-2: #242152;            /* raised / hover */
+  --line: #353070;
+  --line-soft: #29255a;
+  --text: #eeecfb;
+  --text-2: #b6b1e0;
+  --text-3: #8581b4;
+  --fuel: #ffd23f;
+  --score: #4ce0a4;
+  --miss: #ff6f5e;
+  --accent: #b9adff;
+  --accent-ink: #17143a;
+  --src-speed: #ff9a62;
+  --src-angle: #7cc6ff;
+  --src-wake: #d7a0f2;
+  --src-range: #a8e36a;
+  --src-yaw: #f7a8c8;
+  --shadow: 0 1px 0 rgba(255, 255, 255, .03) inset;
+  --font-ui: "Barlow Semi Condensed", "Barlow", ui-sans-serif, system-ui, -apple-system,
+             "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-text: "Barlow", ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC",
+               "Microsoft YaHei", sans-serif;
+  --font-math: "STIX Two Text", "STIXGeneral", "Cambria Math", "Times New Roman", serif;
+  --font-code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ink-0: #f2f0fb;
+  --ink-1: #ffffff;
+  --ink-2: #e9e5f9;
+  --line: #cfc9ec;
+  --line-soft: #e1ddf4;
+  --text: #1b1838;
+  --text-2: #514c85;
+  --text-3: #7b76a8;
+  --fuel: #b87400;
+  --score: #0b8f60;
+  --miss: #cf3b27;
+  --accent: #5540d8;
+  --accent-ink: #ffffff;
+  --src-speed: #c85a17;
+  --src-angle: #1f7fc4;
+  --src-wake: #9a4fc9;
+  --src-range: #4f9412;
+  --src-yaw: #c4487e;
+  --shadow: 0 1px 2px rgba(40, 30, 110, .07);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--ink-0);
+  color: var(--text);
+  font: 400 16px/1.55 var(--font-text);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-underline-offset: .18em; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+button { font: inherit; color: inherit; }
+
+/* Top bar, identical on every page */
+.bar {
+  display: flex; align-items: center; gap: 20px;
+  padding: 12px clamp(16px, 3vw, 32px);
+  border-bottom: 1px solid var(--line-soft);
+}
+.wordmark {
+  font: 600 21px/1 var(--font-ui); letter-spacing: .01em;
+  color: var(--text); text-decoration: none; display: inline-flex; align-items: center; gap: 9px;
+}
+.wordmark svg { display: block; }
+.bar .where { color: var(--text-2); font: 500 15px/1.2 var(--font-ui); }
+.bar nav { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.bar nav a {
+  font: 500 15px/1 var(--font-ui); color: var(--text-2); text-decoration: none;
+  padding: 8px 10px; border-radius: 7px;
+}
+.bar nav a:hover, .bar nav a[aria-current="page"] { color: var(--text); background: var(--ink-2); }
+.theme-toggle {
+  font: 500 14px/1 var(--font-ui); color: var(--text-2);
+  background: none; border: 1px solid var(--line); border-radius: 999px;
+  padding: 7px 12px; cursor: pointer; margin-left: 6px;
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--text-3); }
+@media (max-width: 560px) {
+  .bar { gap: 10px; flex-wrap: wrap; }
+  .bar .where { display: none; }
+}

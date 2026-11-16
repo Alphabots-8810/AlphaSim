@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AlphaSim - shooter range</title>
+<meta name="description" content="Interactive ballistics range for an FRC 2026 REBUILT shooter: pick a distance, see the best hood angle and flywheel speed, and watch a 100-ball burst.">
+<script>try{var t=localStorage.getItem('alphasim-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>/*@fonts*/</style>
+<style>/*@include shared.css*/</style>
+<style>
+.app { display: grid; grid-template-columns: 318px minmax(0, 1fr); min-height: calc(100vh - 54px); }
+.rail { border-right: 1px solid var(--line-soft); padding: 6px 0 40px; }
+.work { padding: clamp(12px, 2vw, 22px); display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* ---- control rail ---- */
+.group { padding: 14px 20px 16px; border-bottom: 1px solid var(--line-soft); }
+.group > h2, details.group > summary {
+  font: 600 15px/1.2 var(--font-ui); letter-spacing: .01em; margin: 0 0 10px; color: var(--text);
+}
+details.group > summary { cursor: pointer; list-style: none; display: flex; align-items: center; margin: 0; }
+details.group > summary::-webkit-details-marker { display: none; }
+details.group > summary::after {
+  content: ""; margin-left: auto; width: 8px; height: 8px; border: solid var(--text-3);
+  border-width: 0 1.5px 1.5px 0; transform: rotate(45deg) translateY(-2px); transition: transform .15s;
+}
+details.group[open] > summary::after { transform: rotate(225deg) translateY(-2px); }
+details.group[open] > summary { margin-bottom: 10px; }
+.hint { color: var(--text-2); font-size: 13.5px; line-height: 1.45; margin: 8px 0 0; }
+.hint + .field, .hint + div > .field:first-child { margin-top: 14px; }
+.hint + div { margin-top: 14px; }
+
+.field { margin: 10px 0 0; }
+.field:first-of-type { margin-top: 0; }
+.field .row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.field label { font: 500 14.5px/1.3 var(--font-ui); color: var(--text-2); }
+.field output { font: 600 15px/1.3 var(--font-ui); color: var(--text); white-space: nowrap; }
+.field.big label { font-size: 15px; color: var(--text); }
+.field.big output { font-size: 26px; line-height: 1; }
+
+input[type="range"] {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 22px; margin: 4px 0 0;
+  background: transparent; cursor: pointer; --p: 50%;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 2px;
+  background: linear-gradient(var(--accent) 0 0) 0 / var(--p) 100% no-repeat, var(--line);
+}
+input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%;
+  background: var(--text); border: 3px solid var(--accent);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 11px; height: 11px; border-radius: 50%; background: var(--text); border: 3px solid var(--accent);
+}
+input[type="range"]:focus-visible { outline: none; }
+input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); }
+input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 9px; padding: 3px; gap: 3px; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label {
+  text-align: center; font: 500 14.5px/1 var(--font-ui); padding: 9px 4px; border-radius: 6px;
+  color: var(--text-2); cursor: pointer;
+}
+.seg label:hover { color: var(--text); }
+.seg input:checked + label { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.btn {
+  font: 500 14.5px/1 var(--font-ui); padding: 9px 13px; border-radius: 7px; cursor: pointer;
+  background: var(--ink-2); border: 1px solid var(--line); color: var(--text);
+}
+.btn:hover { border-color: var(--text-3); }
+.btn.primary { background: var(--fuel); border-color: var(--fuel); color: #1c1600; font-weight: 600; }
+:root[data-theme="light"] .btn.primary { color: #fff; }
+.btn.quiet { background: none; border-color: transparent; color: var(--text-2); padding: 6px 8px; }
+.btn.quiet:hover { color: var(--text); background: var(--ink-2); }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+[hidden] { display: none !important; }
+
+/* ---- stage ---- */
+.stage { position: relative; background: var(--ink-1); border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
+.stage canvas { display: block; width: 100%; aspect-ratio: 2.3 / 1; }
+.stage-tools { position: absolute; top: 10px; right: 10px; display: flex; gap: 8px; align-items: center; }
+.toggle { display: inline-flex; align-items: center; gap: 7px; font: 500 14px/1 var(--font-ui); color: var(--text-2); cursor: pointer; padding: 8px 6px; }
+.toggle input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.stage-note { position: absolute; left: 16px; top: 13px; font: 500 14px/1.35 var(--font-ui); color: var(--text-2); max-width: 44%; }
+.warn { color: var(--miss); }
+
+/* ---- readouts ---- */
+.readouts { display: grid; grid-template-columns: 1.5fr repeat(5, 1fr); border: 1px solid var(--line-soft); border-radius: 12px; background: var(--ink-1); }
+.readout { padding: 12px 16px 13px; border-left: 1px solid var(--line-soft); min-width: 0; }
+.readout:first-child { border-left: 0; }
+.readout dt { font: 500 13.5px/1.2 var(--font-ui); color: var(--text-2); margin: 0 0 5px; }
+.readout dd { margin: 0; font: 600 24px/1.05 var(--font-ui); white-space: nowrap; }
+.readout dd small { font: 500 14px/1 var(--font-ui); color: var(--text-2); margin-left: 3px; }
+.readout .sub { font: 400 13px/1.35 var(--font-text); color: var(--text-2); margin-top: 5px; }
+.readout.main dd { font-size: 40px; letter-spacing: -.01em; }
+.readout.main dd.good { color: var(--score); }
+.readout.main dd.fair { color: var(--fuel); }
+.readout.main dd.poor { color: var(--miss); }
+
+/* ---- lower panels ---- */
+.lower { display: grid; grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr); gap: 14px; }
+.panel { background: var(--ink-1); border: 1px solid var(--line-soft); border-radius: 12px; padding: 14px 16px 14px; min-width: 0; }
+.panel h2 { font: 600 16px/1.2 var(--font-ui); margin: 0; }
+.panel .lede { color: var(--text-2); font-size: 13.5px; line-height: 1.45; margin: 4px 0 8px; }
+.panel canvas { display: block; width: 100%; }
+#top { aspect-ratio: 1.42 / 1; }
+#why { aspect-ratio: 2.05 / 1; cursor: crosshair; touch-action: none; }
+.key { display: flex; flex-wrap: wrap; gap: 4px 16px; font: 500 13.5px/1.4 var(--font-ui); color: var(--text-2); margin-top: 8px; }
+.key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.key i.line { width: 16px; height: 0; border-radius: 0; border-top: 2px dashed currentColor; vertical-align: 3px; }
+
+.budget { margin-top: 12px; }
+.budget .cap { display: flex; justify-content: space-between; font: 500 13.5px/1.3 var(--font-ui); color: var(--text-2); margin-bottom: 6px; gap: 12px; }
+.budget .cap b { color: var(--text); font-weight: 600; }
+.bars { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--line-soft); gap: 2px; }
+.bars span { min-width: 0; transition: flex-grow .2s; }
+.bars-key { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 10px; margin-top: 8px; font: 500 13.5px/1.25 var(--font-ui); color: var(--text-2); }
+.bars-key b { display: block; color: var(--text); font-weight: 600; font-size: 15px; }
+.bars-key i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+
+.foot { color: var(--text-2); font-size: 13.5px; line-height: 1.5; padding: 2px 2px 10px; max-width: 86ch; }
+
+@media (max-width: 1080px) {
+  .readouts { grid-template-columns: repeat(3, 1fr); }
+  .readout:nth-child(4) { border-left: 0; }
+  .readout:nth-child(n+4) { border-top: 1px solid var(--line-soft); }
+  .lower { grid-template-columns: 1fr; }
+}
+@media (max-width: 820px) {
+  /* One column. The distance and aim controls sit right under the stage; the
+     rest of the rail follows the plots. */
+  .app { display: flex; flex-direction: column; }
+  .rail, .work { display: contents; }
+  .stage { order: 1; margin: 12px 12px 0; }
+  #gDistance { order: 2; }
+  .readouts { order: 3; margin: 12px 12px 0; }
+  #gAim { order: 4; }
+  .lower { order: 5; margin: 14px 12px 0; }
+  .rail > details { order: 6; }
+  .foot { order: 7; padding: 16px 20px 28px; }
+  .stage canvas { aspect-ratio: 1.45 / 1; }
+  .stage-note { position: static; max-width: none; padding: 10px 14px 0; min-height: 0; }
+  .stage-note:empty { display: none; }
+  .stage-tools { position: static; padding: 4px 10px 10px; justify-content: flex-end; flex-wrap: wrap; }
+  #why { aspect-ratio: 1.45 / 1; }
+}
+@media (max-width: 520px) {
+  .readouts { grid-template-columns: repeat(2, 1fr); }
+  .readout { border-left: 0; border-top: 1px solid var(--line-soft); }
+  .readout:nth-child(even) { border-left: 1px solid var(--line-soft); }
+  .readout:nth-child(-n+2) { border-top: 0; }
+  .readout.main { grid-column: 1 / -1; }
+  .readout:nth-child(2) { border-top: 1px solid var(--line-soft); border-left: 0; }
+  .readout:nth-child(3) { border-left: 1px solid var(--line-soft); }
+  .readout:nth-child(4) { border-left: 0; }
+  .readout:nth-child(5) { border-left: 1px solid var(--line-soft); }
+  .readout:nth-child(6) { border-left: 0; grid-column: 1 / -1; }
+  .readout.main dd { font-size: 34px; }
+  .bars-key { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <a class="wordmark" href="index.html" aria-label="AlphaSim home">
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 20.5C6 7 13.5 2.5 21 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="21" cy="13" r="2.7" fill="var(--fuel)"/></svg>
+    AlphaSim
+  </a>
+  <span class="where">Shooter range for FRC 2026 REBUILT</span>
+  <nav aria-label="AlphaSim pages">
+    <a href="shooter_sim.html" aria-current="page">Simulator</a>
+    <a href="research_report.html">Report</a>
+    <a href="https://github.com/Alphabots-8810/AlphaSim">Source</a>
+    <button class="theme-toggle" id="theme" type="button">Light</button>
+  </nav>
+</header>
+
+<main class="app">
+  <aside class="rail" aria-label="Controls">
+    <section class="group" id="gDistance">
+      <div class="field big">
+        <div class="row"><label for="d">Distance to hub</label><output id="dOut" for="d"></output></div>
+        <input type="range" id="d" step="0.05">
+      </div>
+    </section>
+
+    <section class="group" id="gAim">
+      <h2>Aim</h2>
+      <div class="seg" role="radiogroup" aria-label="How the shot is chosen">
+        <input type="radio" name="aim" id="aimBest" value="best" checked><label for="aimBest">Best shot</label>
+        <input type="radio" name="aim" id="aimShipped" value="shipped"><label for="aimShipped">Robot code</label>
+        <input type="radio" name="aim" id="aimManual" value="manual"><label for="aimManual">Manual</label>
+      </div>
+      <p class="hint" id="aimHint"></p>
+      <div id="bestBox">
+        <div class="field">
+          <div class="row"><label for="concession">Margin traded for a slower flywheel</label><output id="concessionOut"></output></div>
+          <input type="range" id="concession" min="0" max="0.10" step="0.005">
+        </div>
+      </div>
+      <div id="manualBox" hidden>
+        <div class="field">
+          <div class="row"><label for="hood">Launch angle</label><output id="hoodOut"></output></div>
+          <input type="range" id="hood" min="25" max="85" step="0.1">
+        </div>
+        <div class="field">
+          <div class="row"><label for="speed">Ball speed</label><output id="speedOut"></output></div>
+          <input type="range" id="speed" min="4" max="13" step="0.01">
+        </div>
+        <div class="btn-row"><button class="btn" id="centre" type="button">Find the speed that centres it</button></div>
+      </div>
+    </section>
+
+    <details class="group" open>
+      <summary>Scatter</summary>
+      <p class="hint" style="margin-top:0">How much each thing varies from ball to ball (one standard deviation). The aim is chosen to tolerate these.</p>
+      <div class="field"><div class="row"><label for="bSpeed">Ball speed</label><output id="bSpeedOut"></output></div><input type="range" id="bSpeed" min="0" max="5" step="0.1"></div>
+      <div class="field"><div class="row"><label for="bAngle">Launch angle</label><output id="bAngleOut"></output></div><input type="range" id="bAngle" min="0" max="2" step="0.05"></div>
+      <div class="field"><div class="row"><label for="bYaw">Robot heading</label><output id="bYawOut"></output></div><input type="range" id="bYaw" min="0" max="3" step="0.1"></div>
+      <div class="field"><div class="row"><label for="bRange">Distance estimate</label><output id="bRangeOut"></output></div><input type="range" id="bRange" min="0" max="10" step="0.5"></div>
+      <div class="field"><div class="row"><label for="bVortex">Air wobble in flight</label><output id="bVortexOut"></output></div><input type="range" id="bVortex" min="0" max="0.10" step="0.005"></div>
+      <div class="field"><div class="row"><label for="bLane">Dumper half-width</label><output id="bLaneOut"></output></div><input type="range" id="bLane" min="0" max="30" step="1"></div>
+      <div class="btn-row"><button class="btn quiet" id="resetBudget" type="button">Reset scatter</button></div>
+    </details>
+
+    <details class="group">
+      <summary>Field calibration</summary>
+      <p class="hint" style="margin-top:0">The robot multiplies its flywheel speed by kSpeed. It is the one number you tune at an event.</p>
+      <div class="field"><div class="row"><label for="kSpeed">kSpeed</label><output id="kSpeedOut"></output></div><input type="range" id="kSpeed" min="0.85" max="1.15" step="0.001"></div>
+      <div class="field"><div class="row"><label for="kSlope">kSpeedSlope, per metre</label><output id="kSlopeOut"></output></div><input type="range" id="kSlope" min="-0.03" max="0.03" step="0.001"></div>
+      <div class="btn-row">
+        <button class="btn" id="autocal" type="button">Centre with kSpeed</button>
+        <button class="btn quiet" id="resetCal" type="button">Reset</button>
+      </div>
+    </details>
+
+    <details class="group">
+      <summary>What if the model is wrong</summary>
+      <p class="hint" style="margin-top:0">The aim assumes drag 0.50, no spin and a 0.50 m exit. Change what really happens, watch the balls drift, then fix it with kSpeed.</p>
+      <div class="field"><div class="row"><label for="wCd">Real drag coefficient</label><output id="wCdOut"></output></div><input type="range" id="wCd" min="0.30" max="0.70" step="0.01"></div>
+      <div class="field"><div class="row"><label for="wCl">Backspin lift coefficient</label><output id="wClOut"></output></div><input type="range" id="wCl" min="0" max="0.35" step="0.01"></div>
+      <div class="field"><div class="row"><label for="wExit">Exit height</label><output id="wExitOut"></output></div><input type="range" id="wExit" min="0.30" max="0.80" step="0.01"></div>
+      <div class="field"><div class="row"><label for="wBearing">Hub turned by</label><output id="wBearingOut"></output></div><input type="range" id="wBearing" min="0" max="30" step="1"></div>
+      <div class="btn-row"><button class="btn quiet" id="resetWorld" type="button">Reset to the model</button></div>
+    </details>
+  </aside>
+
+  <section class="work">
+    <div class="stage">
+      <canvas id="side" role="img" aria-label="Side view of the burst: ball paths from the robot to the hub opening"></canvas>
+      <div class="stage-note" id="stageNote"></div>
+      <div class="stage-tools">
+        <label class="toggle"><input type="checkbox" id="slow"> Slow motion</label>
+        <button class="btn" id="reseed" type="button">New burst</button>
+        <button class="btn primary" id="fire" type="button">Fire 100 balls</button>
+      </div>
+    </div>
+
+    <dl class="readouts">
+      <div class="readout main"><dt>Balls that score</dt><dd id="rScore">-</dd><div class="sub" id="rScoreSub"></div></div>
+      <div class="readout"><dt>Launch angle</dt><dd id="rHood">-</dd><div class="sub" id="rHoodSub"></div></div>
+      <div class="readout"><dt>Flywheel surface</dt><dd id="rFly">-</dd><div class="sub" id="rFlySub"></div></div>
+      <div class="readout"><dt>Flight time</dt><dd id="rTof">-</dd><div class="sub" id="rTofSub"></div></div>
+      <div class="readout"><dt>Entry angle</dt><dd id="rEntry">-</dd><div class="sub" id="rEntrySub"></div></div>
+      <div class="readout"><dt>Lands</dt><dd id="rLand">-</dd><div class="sub" id="rLandSub"></div></div>
+    </dl>
+
+    <div class="lower">
+      <section class="panel">
+        <h2>Looking down into the hub</h2>
+        <p class="lede">Where each ball crosses the opening. The shaded area is where a ball fits without touching the rim.</p>
+        <canvas id="top" role="img" aria-label="Top view of the hexagonal opening with landing points"></canvas>
+        <div class="key">
+          <span><i style="background:var(--score)"></i>scored</span>
+          <span><i style="background:var(--miss)"></i>missed</span>
+          <span style="color:var(--fuel)"><i class="line"></i><span style="color:var(--text-2)">1 and 2 standard deviations</span></span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Why this angle</h2>
+        <p class="lede">Every angle has one speed that lands on centre. Steeper shots forgive speed errors but need a faster flywheel. Click the chart to try an angle.</p>
+        <canvas id="why" role="img" aria-label="Sigma margin and required ball speed against launch angle"></canvas>
+        <div class="budget">
+          <div class="cap"><span>Landing spread along the shot, by cause</span><span>total <b id="budTotal">-</b></span></div>
+          <div class="bars" id="bars" aria-hidden="true"></div>
+          <div class="bars-key" id="barsKey"></div>
+        </div>
+      </section>
+    </div>
+
+    <p class="foot" id="foot"></p>
+  </section>
+</main>
+
+<script>/*@include alphasim_core.js*/</script>
+<script>
+const DEP = /*DEPLOYMENT_BEGIN*/null/*DEPLOYMENT_END*/;
+</script>
+<script>/*@include sim.js*/</script>
+</body>
+</html>

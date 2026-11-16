@@ -1,35 +1,47 @@
-# AlphaSim — FRC 2026 REBUILT Shooter Aim
+# AlphaSim — FRC 2026 REBUILT shooter aim
 
-Ballistics physics + optimization pipeline that solves
-**distance → hood angle + flywheel surface speed** for an FRC 2026 big-dumper-style shooter.
-The final deliverable is a closed-form function: robot code feeds in the distance to the HUB
-and gets the hood angle and flywheel speed back; at competition you calibrate the landing
-point with **a single coefficient**, `kSpeed`.
+Distance in, aim out. AlphaSim works out the **launch angle and flywheel speed** that give a
+dumper-style shooter the best chance of scoring from 1.5 to 5 m, and ships the answer as three
+short formulas for robot code. One number, `kSpeed`, is tuned at the field.
 
-> Exit height calibrated at **0.50 m** (V3.1: centered-landing + physics-calibrated cost,
-> `w_tof=1.1` derived from vortex-shedding dispersion).
+**Live** (GitHub Pages): **https://alphabots-8810.github.io/AlphaSim/**
 
-**🔗 Live** (GitHub Pages): report and the Alpha Sim simulator → **https://alphabots-8810.github.io/AlphaSim/**
+- [Simulator](https://alphabots-8810.github.io/AlphaSim/shooter_sim.html) — pick a distance, watch a
+  100-ball burst, see where each ball lands and why that angle was chosen.
+- [Report](https://alphabots-8810.github.io/AlphaSim/research_report.html) — the flight model, the
+  error budget, the results, and what still needs measuring.
 
-## Use it directly
+## Use it on a robot
 
-Easiest path: copy [`handoff/ShooterAim.java`](handoff/ShooterAim.java) (or [`shooter_aim.py`](handoff/shooter_aim.py)) into your robot project.
+Copy [`handoff/ShooterAim.java`](handoff/ShooterAim.java) (or
+[`shooter_aim.py`](handoff/shooter_aim.py)) into your project:
 
 ```java
 ShooterAim.Aim a = ShooterAim.aimFor(distanceMeters);
-setHoodAngle(a.hoodAngleDeg());            // degrees
-setFlywheelSurfaceSpeed(a.flywheelSpeedMps());   // m/s surface speed (to RPM: v/(π·D)·60)
+setHoodAngle(a.hoodAngleDeg());                    // degrees above horizontal
+setFlywheelSurfaceSpeed(a.flywheelSpeedMps());     // m/s; rpm = v / (π · wheelDiameter) · 60
 ```
 
-Valid range 1.5–5.0 m (clamped automatically outside it). Field calibration touches only `kSpeed`:
-falling short → increase it; overshooting → decrease it.
-Full handoff notes in [`handoff/README.md`](handoff/README.md).
+Inputs outside 1.5–5.0 m are clamped. At the field, tune `kSpeed` only: balls short → raise it,
+balls long → lower it. Read [`handoff/README.md`](handoff/README.md) before the first shot; it
+covers where `kSpeed` should start for your kind of shooter and what the angle means.
 
-## Docs and tools
+## How the aim is chosen
 
-- **Research report** [`research_report.html`](research_report.html) — physics model → algorithm evolution (V1→V4r2) → how the formulas/coefficients were derived (§5).
-- **Alpha Sim** [`shooter_sim.html`](shooter_sim.html) — interactive in-browser simulator; drag the sliders and watch the 100-ball burst hit rate.
-- **Coefficient table** [`lookup_polynomial.json`](lookup_polynomial.json) — machine-readable fitted coefficients (hood / v_ball / flywheel surface speed / reference RPM).
+For each distance there is a whole family of shots that land on the hub centre, one speed per
+launch angle. The solver (version 5) walks that family and, for each shot, works out how far the
+landing point moves for each thing that varies from ball to ball — flywheel speed, launch angle,
+heading, the distance estimate, turbulence in flight, where across the dumper the ball started —
+and how much room the hexagonal opening leaves at that entry angle. That gives a probability of
+scoring. It takes the angle with the best odds, then slides toward a slower flywheel until 3 % of
+the safety margin is spent.
+
+Every input is a physical quantity you can measure, listed in
+[`config/robot.yaml`](config/robot.yaml) under `error_budget`. There are no tuning weights.
+
+With the scatter currently assumed, about 99.7 % of balls score from 3 m and 96 % from 5 m, and
+the far shots are limited by how repeatable the flywheel speed is. Those scatter values are
+estimates; the report says how to measure them.
 
 ## Running from source
 
@@ -37,35 +49,56 @@ Full handoff notes in [`handoff/README.md`](handoff/README.md).
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-python scripts/aim.py -d 3.5                      # single-distance solve
-python scripts/aim.py -d 0 --sweep                # full-distance sweep
-python scripts/robust_aim.py -d 3.5 --compare     # robust vs heuristic
-python scripts/generate_coefficients.py --shooter-height 0.50 --json lookup_polynomial.json
-pytest -q                                         # 28 tests
+python scripts/aim.py -d 3.5                    # one distance, with the error budget
+python scripts/aim.py --sweep                   # the whole operating range
+python scripts/aim.py -d 3.5 --monte-carlo 200000   # cross-check by simulation
+python scripts/hood_sweep_hitrate.py -d 3       # every angle at one distance
+python scripts/build_site.py                    # regenerate formulas, simulator, report
+pytest -q
 ```
+
+## Changing the robot
+
+Everything shipped is generated. Edit [`config/robot.yaml`](config/robot.yaml) — exit height, hood
+range, the error budget, how much margin to trade for speed — then run
+
+```bash
+python scripts/build_site.py
+```
+
+That re-solves, refits the formulas, grades them end to end, and rewrites `handoff/`, the
+simulator and the report together. A test fails if any of them is out of date. The exit height is
+baked into the formulas, so this is the only way to change it.
 
 ## Layout
 
 ```
-src/        physics (trajectory/shooter) · geometry (target) · optimizer (solve/robust) · viz (plot)
-scripts/    aim.py · robust_aim.py · hood_sweep_hitrate.py · generate_coefficients.py
-config/     game_2026.yaml (HUB/FUEL parameters) · robot.yaml (robot geometry / cost weights)
-handoff/    minimal package delivered to the shooter programmer (function + report + sim + json + readme)
-tests/      28 pytest
+src/        physics (batch integrator, reference integrator, launcher) · scoring (opening geometry,
+            error budget) · optimizer (maxprob = V5; solve, robust = earlier versions) · deploy · montecarlo
+scripts/    aim.py · hood_sweep_hitrate.py · generate_coefficients.py · build_site.py · build_report.py
+web/        sources of the three pages; alphasim_core.js is the solver ported to JavaScript
+config/     game_2026.yaml (hub and ball) · robot.yaml (robot, error budget, solver settings)
+handoff/    what a robot programmer needs: the function in Java and Python, the JSON, both pages
+tests/      pytest; includes Python-vs-JavaScript and repo-is-up-to-date checks
 ```
 
-## Changing the exit height
+`shooter_sim.html`, `research_report.html` and `index.html` at the top level are built files, each
+a single self-contained page with no network requests. Edit the sources in `web/`, not these.
 
-The coefficients are baked into the polynomials at 0.50 m. If your real robot's height differs
-meaningfully, regenerate and paste back into `ShooterAim.java`:
+## Earlier versions
 
-```bash
-python scripts/generate_coefficients.py --shooter-height <new height>
-```
+The curve shipped before November 2026 (version 3.1) came from a weighted cost function. The new
+solver lands within about 1° of it at every distance and scores it within 0.2 percentage points,
+so robots already tuned on the old curve do not need retuning. The old solvers are kept in
+`src/optimizer/` (`python scripts/aim.py --solver v31`, `scripts/robust_aim.py`).
+
+## Credits
+
+Built by Yihan Zhu for FRC Team 8810 Alphabots. Co-authored by Claude Mythos 5.2 (Anthropic),
+which wrote the version 5 solver, the simulator and the report with him.
 
 ## License
 
 MIT — see [LICENSE](LICENSE). © 2026 Alphabots — FRC Team 8810.
-
----
-FRC Team 8810 · Alphabots
+The pages embed the Barlow typeface, © The Barlow Project Authors, under the SIL Open Font
+License 1.1 ([`web/fonts/OFL.txt`](web/fonts/OFL.txt)).

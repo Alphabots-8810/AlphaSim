@@ -12,12 +12,47 @@ shooter:
   hood_angle_min_deg: 25.0
   hood_angle_max_deg: 85.0
 
-  # 4-ball-wide dumper: lateral half-width of a ball clump (meters).
-  # 4 balls of ~0.15 m diameter + gaps ≈ 0.30 m per clump, half-width 0.15 m.
-  # With shot-to-shot timing spread the real value may be larger; start at 0.15 m and calibrate.
+  # Dumper width: how far either side of the shot line a ball's CENTRE can be
+  # when it leaves the robot (meters). Balls are assumed spread evenly across
+  # +/- this value. A row of four 0.15 m balls touching each other would be
+  # +/-0.225 m; 0.15 m is the current working estimate - measure and update.
   ball_clump_half_width_m: 0.15
 
-# Cost function weights (per-optimization, can override on CLI)
+# Error budget (V5 solver): the 1-sigma size of every error source the aim
+# point is chosen to tolerate. These are measurable physical quantities, not
+# tuning weights - replace each estimate with a measurement when you have one.
+#   speed_sigma      shot-to-shot ball exit speed scatter, as a fraction of
+#                    speed. Measure: film ~30 shots at one setpoint, or back it
+#                    out of the landing scatter (sim shows metres per percent).
+#                    0.017 has the same variance as the old "+/-3 % uniform".
+#   angle_sigma_deg  shot-to-shot launch angle scatter (hood backlash, ball
+#                    seating). 0.6 matches the old "+/-1 deg uniform".
+#   yaw_sigma_deg    heading error of the robot when it fires.
+#   range_sigma_m    error of the distance estimate (vision / odometry).
+#   vortex_coeff     wake-turbulence wander of the ball in flight:
+#                    sigma = coeff * T^2 meters, T = time of flight in seconds.
+#                    0.04 is an order-of-magnitude estimate from knuckleball
+#                    physics (Darbois Texier et al., New J. Phys. 2016), good to
+#                    about a factor of two.
+error_budget:
+  speed_sigma: 0.017
+  angle_sigma_deg: 0.6
+  yaw_sigma_deg: 1.0
+  range_sigma_m: 0.03
+  vortex_coeff: 0.04
+
+# V5 aim solver settings.
+aim:
+  # The solver finds the hood angle with the highest scoring probability, then
+  # (if this is > 0) slides toward lower flywheel speed until the sigma margin
+  # has dropped by this fraction. 0.03 = "keep 97 % of the best margin, take
+  # the cheapest shot that does". 0 = maximum hit probability, ~3 % more speed.
+  margin_concession: 0.03
+  # 0 = a hex flat faces the robot (worst case along the shot line).
+  hex_bearing_deg: 0.0
+
+# LEGACY - weights of the V3.1 weighted-cost solver (src/optimizer/solve.py),
+# kept so the old results stay reproducible. The V5 solver does not use them.
 # V3.1 calibration (physics-derived w_tof):
 #   - foam balls don't bounce off the rim → w_entry nearly off
 #   - w_v_exit emphasizes energy saving (v² penalty)

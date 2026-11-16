@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aiming a 100-ball burst - AlphaSim research report</title>
+<meta name="description" content="How AlphaSim chooses a launch angle and flywheel speed for an FRC 2026 REBUILT shooter, and how far to trust the answer.">
+<script>try{var t=localStorage.getItem('alphasim-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>/*@fonts*/</style>
+<style>/*@include shared.css*/</style>
+<style>
+.doc { display: grid; grid-template-columns: 250px minmax(0, 1fr); max-width: 1180px; margin: 0 auto; }
+.toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding: 34px 8px 40px 24px; }
+.toc ol { list-style: none; margin: 0; padding: 0; counter-reset: sec; }
+.toc li { counter-increment: sec; }
+.toc a {
+  display: flex; gap: 10px; padding: 6px 10px; border-radius: 6px; text-decoration: none;
+  font: 500 15px/1.3 var(--font-ui); color: var(--text-2);
+}
+.toc a::before { content: counter(sec); color: var(--text-3); min-width: 1.1em; }
+.toc a:hover { color: var(--text); background: var(--ink-2); }
+.toc a.on { color: var(--text); background: var(--ink-2); }
+.toc a.on::before { color: var(--fuel); }
+.toc .unnumbered { counter-increment: none; }
+.toc .unnumbered a::before { content: ""; }
+
+article { padding: 40px clamp(18px, 4vw, 56px) 96px; min-width: 0; }
+article > * { max-width: 44rem; }
+article > figure, article > .tablewrap, article > .wide { max-width: 50rem; }
+h1 { font: 600 clamp(34px, 5vw, 50px)/1.04 var(--font-ui); letter-spacing: -.012em; margin: 0 0 14px; }
+.standfirst { font-size: 20px; line-height: 1.45; color: var(--text-2); margin: 0 0 14px; }
+.byline { font: 500 15px/1.4 var(--font-ui); color: var(--text-3); margin: 0 0 34px; }
+h2 { font: 600 28px/1.15 var(--font-ui); margin: 64px 0 14px; scroll-margin-top: 18px; }
+h2 .n { color: var(--fuel); margin-right: .45em; font-weight: 600; }
+h3 { font: 600 19.5px/1.25 var(--font-ui); margin: 34px 0 8px; }
+p, li { font-size: 17px; line-height: 1.62; }
+p { margin: 0 0 15px; }
+ul, ol { padding-left: 1.3em; margin: 0 0 16px; }
+li { margin: 0 0 7px; }
+strong, b { font-weight: 600; }
+code { font: 500 .88em/1.4 var(--font-code); background: var(--ink-2); padding: .1em .36em; border-radius: 4px; }
+pre { background: var(--ink-1); border: 1px solid var(--line-soft); border-radius: 10px; padding: 16px 18px; overflow-x: auto; margin: 18px 0 22px; }
+pre code { background: none; padding: 0; font-size: 13.5px; line-height: 1.6; }
+var, .m { font-family: var(--font-math); font-style: italic; font-size: 1.06em; }
+.m { font-style: normal; }
+
+.short { border: 1px solid var(--line); border-radius: 12px; background: var(--ink-1); padding: 22px 26px 12px; margin: 0 0 28px; }
+.short h2 { margin: 0 0 12px; font-size: 21px; }
+.short ol { padding-left: 1.2em; margin: 0; }
+.short li { font-size: 17.5px; line-height: 1.55; margin-bottom: 11px; }
+
+.eq { font: 400 20px/1.5 var(--font-math); text-align: left; padding: 6px 0 6px 22px; border-left: 3px solid var(--line); margin: 18px 0; overflow-x: auto; white-space: nowrap; }
+.eq var { font-size: 1em; }
+.where { color: var(--text-2); font-size: 15.5px; }
+
+.note { border-left: 3px solid var(--fuel); background: var(--ink-1); padding: 14px 20px 6px; border-radius: 0 10px 10px 0; margin: 24px 0; }
+.note h3 { margin: 0 0 6px; font-size: 18px; }
+.note p { font-size: 16.5px; }
+
+figure { margin: 26px 0 30px; }
+figure .frame { background: var(--ink-1); border: 1px solid var(--line-soft); border-radius: 12px; padding: 14px 12px 10px; }
+figcaption { font-size: 15px; line-height: 1.5; color: var(--text-2); margin-top: 10px; max-width: 44rem; }
+figcaption b { color: var(--text); }
+svg.fig { display: block; width: 100%; height: auto; overflow: visible; }
+svg.fig text { font-family: var(--font-ui); }
+svg.fig .tick { fill: var(--text-3); font-size: 12.5px; font-weight: 500; }
+svg.fig .axlabel { fill: var(--text-2); font-size: 13px; font-weight: 500; }
+svg.fig .grid { stroke: var(--line-soft); stroke-width: 1; }
+svg.fig .axis { stroke: var(--line); stroke-width: 1.2; }
+svg.fig .halo { paint-order: stroke; stroke: var(--ink-1); stroke-width: 4px; stroke-linejoin: round; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 18px; font: 500 14px/1.5 var(--font-ui); color: var(--text-2); padding: 8px 8px 4px; }
+.legend i { display: inline-block; vertical-align: middle; margin-right: 7px; }
+.k-dot { width: 10px; height: 10px; border-radius: 50%; }
+.k-box { width: 11px; height: 11px; border-radius: 2px; }
+.k-line { width: 20px; height: 0; }
+
+.tablewrap { overflow-x: auto; margin: 20px 0 26px; border: 1px solid var(--line-soft); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font: 400 15px/1.4 var(--font-text); background: var(--ink-1); }
+th { font: 600 14px/1.3 var(--font-ui); color: var(--text-2); text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); white-space: normal; vertical-align: bottom; }
+td { padding: 9px 14px; border-top: 1px solid var(--line-soft); vertical-align: top; }
+tbody tr:first-child td { border-top: 0; }
+table.num td, table.num th { text-align: right; white-space: nowrap; }
+table.num td:first-child, table.num th:first-child { text-align: left; }
+table.num th { white-space: normal; }
+
+.refs li { font-size: 15.5px; line-height: 1.5; }
+.end { color: var(--text-3); font-size: 14.5px; margin-top: 56px; }
+
+@media (max-width: 900px) {
+  .doc { grid-template-columns: 1fr; }
+  .toc { position: static; max-height: none; padding: 14px 16px 4px; border-bottom: 1px solid var(--line-soft); }
+  .toc ol { display: flex; flex-wrap: wrap; gap: 2px 4px; }
+  .toc a { padding: 5px 8px; font-size: 14px; }
+  article { padding-top: 26px; }
+  h2 { margin-top: 48px; }
+}
+@media print {
+  .bar nav, .toc { display: none; }
+  .doc { display: block; }
+  :root { --ink-0: #fff; --ink-1: #fff; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <a class="wordmark" href="index.html" aria-label="AlphaSim home">
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 20.5C6 7 13.5 2.5 21 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="21" cy="13" r="2.7" fill="var(--fuel)"/></svg>
+    AlphaSim
+  </a>
+  <span class="where">Research report</span>
+  <nav aria-label="AlphaSim pages">
+    <a href="shooter_sim.html">Simulator</a>
+    <a href="research_report.html" aria-current="page">Report</a>
+    <a href="https://github.com/Alphabots-8810/AlphaSim">Source</a>
+    <button class="theme-toggle" id="theme" type="button">Light</button>
+  </nav>
+</header>
+
+<div class="doc">
+<nav class="toc" aria-label="Contents">
+  <ol>
+    <li class="unnumbered"><a href="#short">The short version</a></li>
+    <li><a href="#job">The job</a></li>
+    <li><a href="#flight">How the ball flies</a></li>
+    <li><a href="#score">What counts as a score</a></li>
+    <li><a href="#scatter">Where the scatter comes from</a></li>
+    <li><a href="#choose">Choosing the shot</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#robot">What goes on the robot</a></li>
+    <li><a href="#unknown">What we do not know yet</a></li>
+    <li><a href="#history">How the solver got here</a></li>
+    <li><a href="#repro">Reproducing this</a></li>
+    <li class="unnumbered"><a href="#refs">References</a></li>
+  </ol>
+</nav>
+
+<article>
+<h1>Aiming a 100-ball burst</h1>
+<p class="standfirst">How AlphaSim chooses a launch angle and a flywheel speed for an FRC 2026 REBUILT shooter, and how far to trust the answer.</p>
+<p class="byline">Team 8810 Alphabots. Written by Yihan Zhu, co-authored by Claude Mythos 5.2. Solver version 5, revised November 2026.</p>
+
+<section class="short" id="short">
+  <h2>The short version</h2>
+  <ol>
+    <li>For any distance from {{d_min}} to {{d_max}} m, AlphaSim gives the robot a launch angle and a flywheel speed that drop the ball on the centre of the hub opening. On the robot that is three short formulas, plus one number, <code>kSpeed</code>, that you tune at the field.</li>
+    <li>With the ball-to-ball scatter we assume, about {{p3}} % of balls score from 3 m and {{p5}} % from 5 m. What holds the far shots back is how repeatable the flywheel speed is from one ball to the next. The choice of angle is already within a few percent of the best there is.</li>
+    <li>Every scatter figure in this report is an estimate. Nobody has measured them on the real robot yet, so read the percentages as planning numbers. <a href="#unknown">Section 8</a> lists what to measure.</li>
+  </ol>
+</section>
+
+<div class="tablewrap"><table class="num">
+<thead><tr><th>From</th><th>Launch angle</th><th>Flywheel surface speed</th><th>Balls that score</th></tr></thead>
+<tbody>
+<tr><td>2 m</td><td>{{hood2}}°</td><td>{{fly2}} m/s</td><td>{{p2}} %</td></tr>
+<tr><td>3 m</td><td>{{hood3}}°</td><td>{{fly3}} m/s</td><td>{{p3}} %</td></tr>
+<tr><td>4 m</td><td>{{hood4}}°</td><td>{{fly4}} m/s</td><td>{{p4}} %</td></tr>
+<tr><td>5 m</td><td>{{hood5}}°</td><td>{{fly5}} m/s</td><td>{{p5}} %</td></tr>
+</tbody></table></div>
+
+<h2 id="job"><span class="n">1</span>The job</h2>
+<p>In REBUILT a robot scores by throwing FUEL, a {{ball_d_cm}} cm foam ball weighing about {{ball_mass_g}} g, into the hexagonal opening on top of the hub. The opening is {{across_flats}} m across its flat sides and its front edge is {{target_h}} m above the carpet.</p>
+<p>Our robot is a dumper. It carries about 100 balls and throws them all in roughly three seconds, several side by side. The ball leaves the shooter {{exit_h}} m above the carpet, and the hood can set any launch angle from {{theta_min}}° to {{theta_max}}° above horizontal.</p>
+<p>So: from a given distance, which angle and which speed? There is no single answer to solve for. For every angle steep enough to come down through the opening there is one speed that lands the ball on centre, and Figure 1 shows three such pairs. They all land on centre. What separates them is what happens when the next ball leaves 2 % slow.</p>
+
+<figure>
+  <div class="frame">{{fig_geometry}}</div>
+  <figcaption><b>Figure 1.</b> Three shots from {{geo_d}} m that all land on the centre of the opening. The green bar is the part of the opening a ball on the middle path can use. A flat shot arrives almost sideways and has to thread the rim; a steep shot drops in but needs a faster flywheel and hangs in the air longer.</figcaption>
+</figure>
+
+<p>The rest of the report answers that in four steps: how the ball flies, what counts as a score, where the scatter comes from, and how the shot is chosen. Sections 6 and 7 give the results and what ships to the robot.</p>
+
+<h2 id="flight"><span class="n">2</span>How the ball flies</h2>
+<p>The ball is treated as a point pulled down by gravity and slowed by air drag that grows with the square of its speed:</p>
+<p class="eq"><var>d</var><b>v</b> / <var>dt</var> = −<var>g</var> <b>ŷ</b> − <var>k</var> |<b>v</b>| <b>v</b>, &nbsp;&nbsp; <var>k</var> = <var>ρ C<sub>d</sub> A</var> / 2<var>m</var> = {{k_drag}} m<sup>−1</sup></p>
+<p class="where">Here <b>v</b> is the ball's velocity, <var>ρ</var> = 1.225 kg/m³ the air density, <var>A</var> the ball's cross-section (radius {{ball_r_cm}} cm), <var>m</var> = {{ball_mass_g}} g its mass and <var>C<sub>d</sub></var> = {{cd}} its drag coefficient.</p>
+<p>At 7 m/s drag slows the ball by about 1.2 m/s², an eighth of gravity. That is enough to cost several tens of centimetres of range over a 4 m shot, so it cannot be left out, but small enough that the model does not need to be exotic.</p>
+<p>The drag coefficient is the one number in the flight model we have not measured. A smooth sphere at these speeds sits near 0.47 to 0.5 (Achenbach 1972); a foam ball is rougher, and we start from {{cd}}. <a href="#robot">Section 7</a> shows what happens if the true value is 0.40 or 0.60.</p>
+<p>Three things are left out on purpose: spin, wind and the ball squashing as it leaves. Spin matters most. A ball spinning backwards gets lift and carries further. The code can include a lift coefficient, but it ships switched off because we do not know how much spin the real shooter gives. Section 7 also tests that.</p>
+<p>The equations are stepped with a fixed 5 ms fourth-order Runge-Kutta scheme, written so that tens of thousands of balls are computed in one pass. It agrees with an independent adaptive integrator to well under a micrometre, and the test suite checks that on every run.</p>
+
+<h3>From ball speed to flywheel speed</h3>
+<p>The solver works in ball speed. What the robot commands is the flywheel's surface speed, and the two are related by how the shooter grips the ball:</p>
+<ul>
+  <li>With powered rollers on both sides of the ball turning at the same surface speed, the ball leaves at nearly that speed. We assume {{slip_pct}} % is lost to slip, so surface speed = ball speed ÷ {{transfer}}.</li>
+  <li>With a flywheel on one side and a fixed plate on the other, the ball rolls along the plate. Its centre then moves at half the wheel's surface speed, so the same shot needs about twice as much.</li>
+</ul>
+<p>This is the largest single unknown in the speed output, and it is exactly what <code>kSpeed</code> is for: expect it to settle near 1 on the first kind of shooter and near 2 on the second. It changes the speed number only. The launch angles and the scoring percentages do not depend on it.</p>
+
+<h2 id="score"><span class="n">3</span>What counts as a score</h2>
+<p>A ball scores if it passes through the opening without touching the rim. That is stricter than the real game, where a soft ball that clips the rim will often still drop in, so the percentages here lean pessimistic.</p>
+<p>How much room that leaves depends on the angle the ball arrives at. Picture the ball's shadow on the plane of the opening, cast along its direction of travel. Coming straight down, the shadow is a circle of the ball's radius <var>r</var>. Coming in at entry angle <var>φ</var> below horizontal, it stretches along the shot to a half-length of <var>r</var> / sin <var>φ</var>. The whole shadow has to fit inside the rim, so along the shot the ball's centre may be at most</p>
+<p class="eq"><var>w</var> = <var>a</var> − <var>r</var> / sin <var>φ</var></p>
+<p class="where">from the hub centre, where <var>a</var> = {{apothem_cm}} cm is the distance from the centre of the hexagon to a flat side.</p>
+
+{{tbl_window}}
+
+<figure>
+  <div class="frame">{{fig_window}}</div>
+  <figcaption><b>Figure 2.</b> Looking down into the opening. The yellow shape is the ball's shadow at three entry angles; the green area is where the ball's centre can be without the shadow touching an edge.</figcaption>
+</figure>
+
+<p>This is the only way entry angle enters the calculation. Earlier solvers carried a tuning weight for "prefer a steep entry"; here a shallow entry simply has less room, by an amount geometry fixes.</p>
+<p>The opening is a hexagon, so a ball that arrives off to one side has less room along the shot than one on the centre line. The code tests against all six edges. It assumes a flat side faces the robot, which is the narrowest case along the shot; the simulator lets you turn the hub and see the difference.</p>
+
+<h2 id="scatter"><span class="n">4</span>Where the scatter comes from</h2>
+<p>No two balls leave the robot identically. The solver plans around an error budget: a list of what varies, and by how much.</p>
+
+{{tbl_budget}}
+
+<p>Each source moves the landing point. The moves are small and unrelated to each other, so their effects add as squares:</p>
+<p class="eq"><var>σ</var><sup>2</sup> = (<var>S<sub>v</sub> σ<sub>v</sub></var>)<sup>2</sup> + (<var>S<sub>θ</sub> σ<sub>θ</sub></var>)<sup>2</sup> + (<var>c T</var><sup>2</sup>)<sup>2</sup> + <var>σ<sub>d</sub></var><sup>2</sup></p>
+<p class="where"><var>σ</var> is the landing spread along the shot. <var>S<sub>v</sub></var> is how far the landing point moves per unit change in speed and <var>S<sub>θ</sub></var> per degree of launch angle; both come from flying the ball again with the speed nudged by 0.2 % and the angle by 0.05°. <var>T</var> is the time of flight, <var>c</var> the air-wobble coefficient, <var>σ<sub>d</sub></var> the distance-estimate error.</p>
+
+<p>For the shot chosen at {{d0}} m, a ball that leaves 1 % fast lands {{d0_cm_per_pct}} cm long, and one launched 1° steep lands {{d0_cm_per_deg}} cm short. With the budget above, speed scatter accounts for {{d0_speed_cm}} cm of the {{d0_total_cm}} cm total, which is {{d0_speed_share}} % of the variance. At 5 m it is {{s5_speed_cm}} cm of {{s5_total_cm}} cm.</p>
+
+<figure>
+  <div class="frame">{{fig_budget}}</div>
+  <figcaption><b>Figure 3.</b> Every centred shot from {{d0}} m, from flat to steep. Top: the landing spread each error source causes. Bottom: the sigma margin, which is the room the opening leaves divided by the spread. The shaded band is what the solver accepts; the yellow line is its pick.</figcaption>
+</figure>
+
+<p>Four things are going on in Figure 3, and together they decide the angle.</p>
+<ul>
+  <li><b>Steeper shots forgive speed errors.</b> A 1 % speed error moves the landing point {{sens50}} cm at 50°, {{sens60}} cm at 60° and {{sens70}} cm at 70°. Near the flat end of the range it blows up, because the ball arrives almost level and a little less speed means it drops short of the rim altogether.</li>
+  <li><b>Angle errors matter least at the slowest shot.</b> For each distance there is one angle that needs the least speed ({{d0_slow}}° at {{d0}} m). At that angle the landing point briefly does not move as the angle changes. Either side of it, angle error costs more and more.</li>
+  <li><b>Steeper shots spend longer in the air,</b> so the air has more time to push them around.</li>
+  <li><b>Steeper shots have more room,</b> from Section 3.</li>
+</ul>
+<p>The margin curve has a broad top near {{d0_best}}°. It is flat enough that anything within a few degrees is nearly as good, which is what makes the trade in the next section cheap.</p>
+
+<p>We use <b>sigma margin</b> as the figure of merit: the number of standard deviations between where the ball is aimed and the rim. A margin of 2 means about 95 % of balls score, 3 means 99.7 %. Unlike the percentage it does not flatten out near 100 %, so it still separates good shots from very good ones.</p>
+
+<h3>Where the air-wobble figure comes from</h3>
+<p>A ball in flight sheds swirls of air from alternate sides, and each one gives it a small sideways shove. Measurements on spheres put that fluctuating force at roughly 7 % of the pressure force (Norman and McKeon 2011), which for our ball at 7 m/s is an acceleration of about 0.17 m/s². If it pushed one way for a whole second the ball would move about 9 cm. It does not: it changes direction several times a second. We take about half, {{vortex_cm}} cm × <var>T</var><sup>2</sup>, in line with the way knuckleballs wander (Darbois Texier et al. 2016). That figure is good to perhaps a factor of two, and Figure 3 shows it is a small term either way.</p>
+
+<div class="note">
+  <h3>A correction to earlier versions of this report</h3>
+  <p>Versions before November 2026 explained the result differently. They said that speed errors favour flat shots, that angle errors favour steep ones, and that angle error is the bigger of the two. All three statements were wrong, as the sensitivities above show: flat shots are the <em>most</em> exposed to speed error, angle error is smallest near the slowest shot rather than at steep angles, and speed error is the dominant term everywhere.</p>
+  <p>The angles those versions recommended were sound (Section 6 compares them). The reasoning given for them was not, and it has been replaced by the error budget above.</p>
+</div>
+
+<h2 id="choose"><span class="n">5</span>Choosing the shot</h2>
+<p>For each distance the solver does the following.</p>
+<ol>
+  <li>Walk the launch angles from {{theta_min}}° to {{theta_max}}° in quarter-degree steps. For each, find the one speed that lands on centre.</li>
+  <li>For each of those shots, work out the landing spread and the room, and from them the probability that a ball passes cleanly through the hexagon. This includes the sideways errors: heading, and where across the dumper the ball started.</li>
+  <li>Find the angle with the best odds.</li>
+  <li>Slide from there toward the slowest shot until the sigma margin has dropped by {{eps_pct}} %, and stop.</li>
+</ol>
+<p>Step 4 is a choice, not physics. The best-odds shot is always steeper and faster than it strictly needs to be. Across the range it scores at most {{best_gain}} percentage points more than the pick while asking for up to {{speed_cost}} % more ball speed, and so about twice that in energy per ball. The team would rather keep the flywheel load down. Setting <code>aim.margin_concession: 0</code> in <code>config/robot.yaml</code> gives the best-odds shot instead.</p>
+
+<figure>
+  <div class="frame">{{fig_trade}}</div>
+  <figcaption><b>Figure 4.</b> What extra speed buys. Each curve starts at the slowest shot that reaches the hub and climbs toward the best odds. Most of the gain comes in the first one or two percent.</figcaption>
+</figure>
+
+<p>The rule in step 4 compares margins as a ratio, so if every noise source turns out to be twice what we assumed, the pick hardly moves. Getting the overall noise level wrong changes the percentages, but not where to aim.</p>
+
+<figure>
+  <div class="frame">{{fig_map}}</div>
+  <figcaption><b>Figure 5.</b> Sigma margin for every distance and launch angle; brighter is safer. The dark wedge at the bottom left is where no shot can come down through the opening; the cut-off at the top is where the shot would need more speed than the shooter has. The pick (yellow) runs a few degrees below the ridge of best odds. The green dotted line is the curve the robot ran before this version.</figcaption>
+</figure>
+
+<h2 id="results"><span class="n">6</span>Results</h2>
+
+{{tbl_lookup}}
+
+<figure>
+  <div class="frame">{{fig_prob}}</div>
+  <figcaption><b>Figure 6.</b> Scoring probability for four ways of choosing the angle. The purple dots are a separate check: {{mc_n}} simulated balls at each distance, with no shortcut in the physics.</figcaption>
+</figure>
+
+<h3>Compared with the previous curve</h3>
+<p>The curve the robot ran before (version 3.1) came from a cost function with hand-set weights. Graded by the model in this report it sits within {{hood_gap}}° of the new pick at every distance, and its scoring probability differs by at most {{p_gap}} percentage points. The new solver did not find a better shot. It shows that the old one was a good one, says why, and puts a number on how good.</p>
+<p>The slowest shot is a different story: it scores {{p3_slow}} % at 3 m and {{p5_slow}} % at 5 m. Aiming for minimum flywheel speed alone gives away most of the margin.</p>
+
+<h3>Checking the model against brute force</h3>
+<p>The probability model takes two shortcuts: it treats the landing point as changing in proportion to each error, and it assumes the scatter follows a bell curve. To check both, a Monte Carlo run draws every error source at random, flies each ball through the full equations, and applies the exact rim test.</p>
+
+{{tbl_mc}}
+
+<p>The predicted spread matches the simulated one to the millimetre. The predicted miss rate is within a few percent of the simulated one from 3 m out, and runs optimistic at 2 m, where both numbers are tiny.</p>
+
+<h3>Why this is not 100 %</h3>
+<p>Earlier versions quoted a 100 % hit rate at every distance. That came from how the test burst drew its errors: evenly from a box of ±3 % speed and ±1° angle, with nothing ever outside it. No ball could be more than 3 % off, so none reached the rim. Real scatter has tails. With the same average size of error but a bell curve, the same 5 m shot scores {{bell5}} %, against {{box5}} % for the box.</p>
+
+<h3>What limits the far shots</h3>
+<p>Speed scatter. At 5 m it causes {{s5_speed_cm}} cm of the {{s5_total_cm}} cm landing spread, against ±{{s5_room_cm}} cm of room. Figure 7 shows how much the answer depends on it.</p>
+
+<figure>
+  <div class="frame">{{fig_speedreq}}</div>
+  <figcaption><b>Figure 7.</b> The same solver, re-run with four levels of ball-to-ball speed scatter. The yellow curve is the {{sv_pct}} % this report assumes.</figcaption>
+</figure>
+
+<p>Read the other way round, this is a target for the shooter: to score 99 % from 3 m the ball speed has to repeat to within {{need99_3}} %, from 4 m within {{need99_4}} %, and from 5 m within {{need99_5}} %. Past that, a better aim point cannot help; a steadier flywheel or a shorter shot can.</p>
+
+<figure>
+  <div class="frame">{{fig_scatter}}</div>
+  <figcaption><b>Figure 8.</b> Where 900 simulated balls cross the opening, from 3 m and from 5 m. The cloud is stretched along the shot because speed error moves the ball forward and back, not sideways.</figcaption>
+</figure>
+
+<h2 id="robot"><span class="n">7</span>What goes on the robot</h2>
+<p>The robot does not run the solver. It evaluates three quadratics in the distance <var>d</var> (metres, from where the ball leaves the shooter to the hub centre):</p>
+<pre><code>launch angle (deg)     =  {{hood_a}} d² {{hood_bs}} {{hood_b}} d + {{hood_c}}
+flywheel surface (m/s) = ({{fly_as}}{{fly_a}} d² {{fly_bs}} {{fly_b}} d + {{fly_c}}) × kSpeed
+time of flight (s)     =  {{tof_as}}{{tof_a}} d² {{tof_bs}} {{tof_b}} d + {{tof_c}}</code></pre>
+
+{{tbl_coeffs}}
+
+<p>They are fitted in order. The angle curve is fitted first. The speed curve is then fitted to the speed that centres the ball <em>at the fitted angle</em>, so it absorbs the angle curve's small error instead of adding its own. Flying the finished formulas shows the ball landing within {{fit_offset_cm}} cm of centre at every distance, and the fit costs at most {{fit_ploss}} percentage points of scoring probability against the exact solver.</p>
+
+<figure>
+  <div class="frame">{{fig_fit}}</div>
+  <figcaption><b>Figure 9.</b> Where the shipped formulas put the ball, checked every 5 cm of distance. The opening leaves more than ±40 cm.</figcaption>
+</figure>
+
+<p>In robot code:</p>
+<pre><code>ShooterAim.Aim a = ShooterAim.aimFor(distanceMeters);
+setHoodAngle(a.hoodAngleDeg());                    // degrees above horizontal
+setFlywheelSurfaceSpeed(a.flywheelSpeedMps());     // m/s; rpm = v / (π · wheelDiameter) · 60</code></pre>
+
+<p>Four things to know before using it.</p>
+<ul>
+  <li><b>The angle is the ball's launch angle above horizontal,</b> not a hood encoder reading. Add your mechanism's own offset.</li>
+  <li><b>The exit height is baked in.</b> The formulas were generated for {{exit_h}} m. Changing the constant in the file does nothing; rerun <code>scripts/build_site.py</code> after editing <code>config/robot.yaml</code>.</li>
+  <li><b>Distances outside {{d_min}} to {{d_max}} m are clamped.</b> The angle curve is a shallow U and would bend the wrong way if extended.</li>
+  <li><b>The time of flight is there for shooting on the move:</b> aim at where the hub will be, relative to the robot, that many seconds from now. This has not been tried on the robot.</li>
+</ul>
+
+<h3>Calibrating at the field</h3>
+<p><code>kSpeed</code> multiplies the flywheel speed. Stand the robot {{d_ref}} m from the hub, fire, and adjust until the cluster is centred: raise it if balls fall short, lower it if they go long. Start near 1.0, or near 2.0 if the hood is a fixed plate (Section 2).</p>
+<p>Is one number enough when the flight model itself is off? The table takes the shipped formulas, flies them through air that does not match the model, tunes <code>kSpeed</code> at {{d_ref}} m, and reports the worst landing error left anywhere in the range.</p>
+
+{{tbl_calib}}
+
+<figure>
+  <div class="frame">{{fig_calib}}</div>
+  <figcaption><b>Figure 10.</b> Landing error across the range after tuning <code>kSpeed</code> at {{d_ref}} m (solid), and after also setting <code>kSpeedSlope</code> from a near and a far shot (dotted).</figcaption>
+</figure>
+
+<p>One knob leaves a typical worst error of {{calib_typ_one}} cm, and {{calib_worst_one}} cm in the hardest case tried ({{calib_worst_label}}). Against a landing spread of 15 to 20 cm that is tolerable at mid range and starts to cost real percentage at 5 m.</p>
+<p>So the shipped function has a second, optional knob. <code>kSpeedSlope</code> lets the gain change in a straight line with distance, pivoting at {{d_ref}} m. Centre the cluster at about 2 m and again at about 4.5 m, and it brings the error under {{calib_worst_two}} cm in every case in the table. Leave it at zero unless near shots are centred and far ones are not.</p>
+
+<h2 id="unknown"><span class="n">8</span>What we do not know yet</h2>
+<ul>
+  <li><b>The scatter.</b> Ball speed ({{sv_pct}} %) and launch angle ({{sa_deg}}°) are guesses carried over from the first burst spec. Speed scatter is the number that matters most. Measure it first: film thirty shots at one setting, or fire at a marked floor and read the spread, which the simulator converts back to percent.</li>
+  <li><b>Speed sag during a burst.</b> Throwing 100 balls in three seconds takes energy out of the flywheel faster than a single test shot does. If it slows as the burst goes on, later balls land short. Nothing here models that. In the simulator it is the same as lowering <code>kSpeed</code>, which shows how much sag a given distance tolerates.</li>
+  <li><b>Drag and spin.</b> Section 7 shows calibration absorbs most of a wrong guess, not that the guess is right.</li>
+  <li><b>How the shooter grips the ball,</b> which sets whether <code>kSpeed</code> starts near 1 or near 2.</li>
+  <li><b>The dumper's width.</b> The model spreads balls evenly across ±15 cm. Four balls side by side would be nearer ±22 cm.</li>
+  <li><b>What the rim and funnel do.</b> A soft ball that touches the rim is counted as a miss. In practice many will drop in, so the real hit rate should be higher than stated.</li>
+  <li><b>Which way the hub faces.</b> We assume a flat side toward the robot. A corner toward the robot leaves a little more room along the shot.</li>
+</ul>
+
+<h2 id="history"><span class="n">9</span>How the solver got here</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Version</th><th>Idea</th><th>What happened</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Search speed and angle freely for the steepest entry.</td><td>Lobbed the ball nearly straight up, or drove it into the far rim.</td></tr>
+<tr><td>2</td><td>Require the ball to land on centre, leaving one speed per angle, and search the angle alone.</td><td>Stable, and still the foundation. With only "steep entry" to optimise, the angle ran to the hood limit.</td></tr>
+<tr><td>3</td><td>Add penalties on speed and flight time, with hand-set weights.</td><td>The flight-time weight was a guess and far too large. It pushed shots flat, which made them worse.</td></tr>
+<tr><td>3.1</td><td>Cut the flight-time weight to a physically argued value.</td><td>Good angles, and the curve the robot ran until this version. The explanation attached to it was wrong (Section 4).</td></tr>
+<tr><td>4</td><td>Find the speed and angle farthest from the edge of the scoring region.</td><td>The right instinct, but it jumped between two regions from one distance to the next and did not land on centre.</td></tr>
+<tr><td>5</td><td>Maximise the probability of scoring under an explicit error budget, along the centred shots.</td><td>This report. No weights; every input is something you can measure.</td></tr>
+</tbody></table></div>
+<p>Versions 3.1 and 4 are still in the repository (<code>src/optimizer/solve.py</code>, <code>src/optimizer/robust.py</code>) so their results can be reproduced.</p>
+
+<h2 id="repro"><span class="n">10</span>Reproducing this</h2>
+<p>Every number, table and figure on this page is computed when the page is built. Nothing is typed in by hand.</p>
+<pre><code>python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+python scripts/aim.py -d 3.5                  # one distance, with the error budget
+python scripts/aim.py --sweep                 # the whole range
+python scripts/hood_sweep_hitrate.py -d 3     # every angle at one distance, model vs Monte Carlo
+python scripts/build_site.py                  # regenerate formulas, simulator and this report
+pytest -q                                     # includes a check that the browser solver matches Python</code></pre>
+<p>The <a href="shooter_sim.html">simulator</a> runs the same solver in the browser. Its sliders are the error budget, so it is the quickest way to see what a measured scatter would do to these numbers.</p>
+
+<h2 id="refs">References</h2>
+<ul class="refs">
+  <li><i>FIRST</i> Robotics Competition, <i>2026 REBUILT Game Manual</i>, sections on the hub and on FUEL.</li>
+  <li>E. Achenbach, "Experiments on the flow past spheres at very high Reynolds numbers", <i>Journal of Fluid Mechanics</i> 54 (1972), 565-575.</li>
+  <li>A. K. Norman and B. J. McKeon, "Unsteady force measurements in sphere flow from subcritical to supercritical Reynolds numbers", <i>Experiments in Fluids</i> 51 (2011), 1439-1453.</li>
+  <li>B. Darbois Texier, C. Cohen, D. Quéré and C. Clanet, "Physics of knuckleballs", <i>New Journal of Physics</i> 18 (2016), 073027.</li>
+</ul>
+<p class="end">Built from the AlphaSim repository. MIT licence, Team 8810 Alphabots.</p>
+</article>
+</div>
+
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  function label() { btn.textContent = document.documentElement.dataset.theme === 'light' ? 'Dark' : 'Light'; }
+  btn.addEventListener('click', function () {
+    var next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('alphasim-theme', next); } catch (e) {}
+    label();
+  });
+  label();
+  // highlight the section being read
+  var links = {}, current = null;
+  document.querySelectorAll('.toc a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        if (current) current.classList.remove('on');
+        current = links[e.target.id];
+        if (current) current.classList.add('on');
+      });
+    }, { rootMargin: '0px 0px -75% 0px' });
+    Object.keys(links).forEach(function (id) { var el = document.getElementById(id); if (el) io.observe(el); });
+  }
+})();
+</script>
+</body>
+</html>

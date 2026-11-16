@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AlphaSim - FRC 2026 shooter aim</title>
+<meta name="description" content="Distance in, launch angle and flywheel speed out: a ballistics solver, simulator and report for an FRC 2026 REBUILT shooter, by Team 8810 Alphabots.">
+<script>try{var t=localStorage.getItem('alphasim-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>/*@fonts*/</style>
+<style>/*@include shared.css*/</style>
+<style>
+main { max-width: 1040px; margin: 0 auto; padding: clamp(28px, 6vw, 70px) clamp(18px, 4vw, 40px) 70px; }
+.top { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: clamp(20px, 4vw, 52px); align-items: center; }
+h1 { font: 600 clamp(38px, 6.2vw, 64px)/1 var(--font-ui); letter-spacing: -.015em; margin: 0 0 18px; }
+.lede { font-size: 19.5px; line-height: 1.5; color: var(--text-2); margin: 0 0 26px; max-width: 34rem; }
+.lede code { font: 500 .9em var(--font-code); background: var(--ink-2); padding: .1em .35em; border-radius: 4px; color: var(--text); }
+.go { display: flex; flex-wrap: wrap; gap: 10px; }
+.go a { font: 600 17px/1 var(--font-ui); text-decoration: none; padding: 14px 20px; border-radius: 9px; border: 1px solid var(--line); color: var(--text); background: var(--ink-2); }
+.go a:hover { border-color: var(--text-3); }
+.go a.primary { background: var(--fuel); border-color: var(--fuel); color: #1c1600; }
+:root[data-theme="light"] .go a.primary { color: #fff; }
+.picture { background: var(--ink-1); border: 1px solid var(--line-soft); border-radius: 14px; padding: 10px; }
+svg.fig { display: block; width: 100%; height: auto; }
+svg.fig text { font-family: var(--font-ui); }
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin: clamp(34px, 6vw, 64px) 0 0; border-top: 1px solid var(--line-soft); }
+.facts div { padding: 20px 22px 4px 0; }
+.facts div + div { padding-left: 22px; border-left: 1px solid var(--line-soft); }
+.facts h2 { font: 600 18px/1.25 var(--font-ui); margin: 0 0 6px; }
+.facts p { margin: 0; color: var(--text-2); font-size: 15.5px; line-height: 1.5; }
+.meta { margin-top: 44px; color: var(--text-3); font-size: 14.5px; line-height: 1.6; }
+@media (max-width: 800px) {
+  .top { grid-template-columns: 1fr; }
+  .picture { order: -1; }
+  .facts { grid-template-columns: 1fr; }
+  .facts div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--line-soft); }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <a class="wordmark" href="index.html" aria-label="AlphaSim home">
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 20.5C6 7 13.5 2.5 21 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="21" cy="13" r="2.7" fill="var(--fuel)"/></svg>
+    AlphaSim
+  </a>
+  <span class="where">FRC Team 8810 Alphabots</span>
+  <nav aria-label="AlphaSim pages">
+    <a href="shooter_sim.html">Simulator</a>
+    <a href="research_report.html">Report</a>
+    <a href="https://github.com/Alphabots-8810/AlphaSim">Source</a>
+    <button class="theme-toggle" id="theme" type="button">Light</button>
+  </nav>
+</header>
+<main>
+  <div class="top">
+    <div>
+      <h1>Distance in, aim out.</h1>
+      <p class="lede">AlphaSim works out the launch angle and flywheel speed that give an FRC 2026 REBUILT shooter the best chance of scoring from {{d_min}} to {{d_max}} m. The answer ships as three short formulas for robot code, with one number, <code>kSpeed</code>, to tune at the field.</p>
+      <div class="go">
+        <a class="primary" href="shooter_sim.html">Open the simulator</a>
+        <a href="research_report.html">Read the report</a>
+      </div>
+    </div>
+    <div class="picture">{{fig_hero}}</div>
+  </div>
+
+  <div class="facts">
+    <div><h2>Try a distance</h2><p>The simulator solves the shot live, fires a 100-ball burst, and shows where each ball lands and why that angle was chosen.</p></div>
+    <div><h2>See the reasoning</h2><p>The report covers the flight model, the error budget, and the results: about {{p3}} % of balls score from 3 m and {{p5}} % from 5 m with the scatter we assume.</p></div>
+    <div><h2>Put it on a robot</h2><p><a href="https://github.com/Alphabots-8810/AlphaSim/tree/main/handoff">The handoff folder</a> has <code>ShooterAim.java</code>, a Python twin and the coefficients as JSON, generated for a {{exit_h}} m exit height.</p></div>
+  </div>
+  <p class="meta">Built by FRC Team 8810 Alphabots, co-authored by Claude Mythos 5.2. MIT licence. Type set in Barlow (SIL Open Font Licence). Every page here is a single file with no network requests, so it also opens offline.</p>
+</main>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  function label() { btn.textContent = document.documentElement.dataset.theme === 'light' ? 'Dark' : 'Light'; }
+  btn.addEventListener('click', function () {
+    var next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('alphasim-theme', next); } catch (e) {}
+    label();
+  });
+  label();
+})();
+</script>
+</body>
+</html>

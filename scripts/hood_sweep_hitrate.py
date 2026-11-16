@@ -1,187 +1,78 @@
 #!/usr/bin/env python3
-"""Sweep hood angle at fixed distance, evaluate 100-ball burst hit rate.
+"""Audit one distance: walk every hood angle and show why the pick is the pick.
 
-Reproduces Alpha Sim's burst physics (Cd=0.5, exit=0.50m, ±3%v, ±1°θ, seed=42)
-to check whether the shipped V3.1 table's (hood, v) is hit-rate-optimal under
-mechanical noise. (This is the audit tool that originally exposed the V3
-w_tof=200 low-arc mistake; constants/table track shooter_sim.html.)
+For each angle on the centred-landing family this prints the speed it needs,
+the landing spread each error source produces, the room the opening leaves,
+and the scoring probability - once from the analytic model the solver uses and
+once from a Monte Carlo burst that makes no linear or normal assumption.
+
+(This is the descendant of the tool that exposed the original V3 w_tof=200
+low-arc mistake.)
 
 Run:
     .venv/bin/python scripts/hood_sweep_hitrate.py --distance 3.0
+    .venv/bin/python scripts/hood_sweep_hitrate.py -d 5 --n-balls 100000 --step 1
 """
 import argparse
-import math
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-import numpy as np
-from scipy.optimize import brentq
+import numpy as np  # noqa: E402
 
-from src.physics.trajectory import simulate_trajectory
-
-
-# Match Alpha Sim constants exactly (shooter_sim.html: HUB/BALL consts + EXIT_H)
-EXIT_H = 0.50
-TARGET_H = 1.829
-CD = 0.50
-RHO = 1.225
-G = 9.81
-BALL_R = 0.075
-BALL_M = 0.215
-APOTHEM = 0.530
-EFF_HALF = APOTHEM - BALL_R  # 0.455m — sim's "in hex" criterion
+from src.config import load_game, load_robot  # noqa: E402
+from src.montecarlo import simulate_burst  # noqa: E402
+from src.optimizer.maxprob import ShotModel, centered_family, choose_angle  # noqa: E402
 
 
-def mulberry32(seed):
-    a = [seed & 0xFFFFFFFF]
-    def rng():
-        a[0] = (a[0] + 0x6D2B79F5) & 0xFFFFFFFF
-        t = a[0]
-        t = ((t ^ (t >> 15)) * (t | 1)) & 0xFFFFFFFF
-        t ^= (t + ((t ^ (t >> 7)) * (t | 61))) & 0xFFFFFFFF
-        return ((t ^ (t >> 14)) & 0xFFFFFFFF) / 4294967296.0
-    return rng
-
-
-def v_centered(d, hood_deg):
-    """Find v ∈ [0.5, 30] s.t. ball hits at x=d for this hood. Returns None if infeasible."""
-    th = math.radians(hood_deg)
-    if math.sin(th) < 0.02 or math.cos(th) < 0.02:
-        return None
-    dh = TARGET_H - EXIT_H
-    denom = d * math.tan(th) - dh
-    if denom <= 0:
-        return None
-    v_seed = math.sqrt(0.5 * G * d * d / (math.cos(th) ** 2 * denom))
-
-    def offset(v):
-        r = simulate_trajectory(v, hood_deg, EXIT_H, TARGET_H,
-                                BALL_M, BALL_R, CD, RHO, G)
-        return (r.hit_x - d) if r.hit else -d
-
-    lo = max(0.5, v_seed * 0.85)
-    hi = v_seed * 2.5
-    f_lo, f_hi = offset(lo), offset(hi)
-    for _ in range(8):
-        if f_hi >= 0: break
-        hi *= 1.4
-        f_hi = offset(hi)
-    if f_hi < 0: return None
-    for _ in range(6):
-        if f_lo <= 0: break
-        lo *= 0.7
-        f_lo = offset(lo)
-    if f_lo > 0: return None
-    try:
-        return brentq(offset, lo, hi, xtol=1e-4, maxiter=40)
-    except (ValueError, RuntimeError):
-        return None
-
-
-def burst_hit_rate(d, hood_deg, v_center, N=100, v_jit=0.03, ang_jit=1.0, seed=42):
-    """Fire N balls with v jitter ±v_jit*v, angle jitter ±ang_jit deg. Match sim seed."""
-    rng = mulberry32(seed)
-    hits_x = []
-    inside = 0
-    outside = 0
-    no_hit = 0
-    tofs = []
-    for _ in range(N):
-        v_j = (rng() - 0.5) * 2 * v_jit
-        a_j = (rng() - 0.5) * 2 * ang_jit
-        v = v_center * (1.0 + v_j)
-        ang = hood_deg + a_j
-        r = simulate_trajectory(v, ang, EXIT_H, TARGET_H,
-                                BALL_M, BALL_R, CD, RHO, G)
-        if not r.hit:
-            no_hit += 1
-            continue
-        hits_x.append(r.hit_x)
-        tofs.append(r.hit_t)
-        if abs(r.hit_x - d) <= EFF_HALF:
-            inside += 1
-        else:
-            outside += 1
-    total = inside + outside
-    rate = inside / total if total > 0 else 0.0
-    spread = (max(hits_x) - min(hits_x)) if len(hits_x) > 1 else 0.0
-    mean_tof = float(np.mean(tofs)) if tofs else 0.0
-    return rate, spread, mean_tof, no_hit
-
-
-def main():
-    ap = argparse.ArgumentParser()
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--distance', '-d', type=float, default=3.0)
-    ap.add_argument('--hood-min', type=float, default=25.0)
-    ap.add_argument('--hood-max', type=float, default=80.0)
-    ap.add_argument('--n-hood', type=int, default=23)
-    ap.add_argument('--n-balls', type=int, default=100)
+    ap.add_argument('--step', type=float, default=2.5, help='hood angle step to print (deg)')
+    ap.add_argument('--n-balls', type=int, default=20000, help='Monte Carlo balls per angle')
+    ap.add_argument('--game-config', default=str(REPO / 'config' / 'game_2026.yaml'))
+    ap.add_argument('--robot-config', default=str(REPO / 'config' / 'robot.yaml'))
     args = ap.parse_args()
 
-    d = args.distance
-    print(f"Distance = {d:.2f} m, exit = {EXIT_H} m, target = {TARGET_H} m")
-    print(f"100-ball burst: ±3% v, ±1° θ, seed=42, eff_half = ±{EFF_HALF:.3f} m")
-    print()
+    game, robot = load_game(args.game_config), load_robot(args.robot_config)
+    model = ShotModel.from_configs(game, robot, hex_bearing_deg=robot.aim.hex_bearing_deg)
+    budget, d = robot.error_budget, args.distance
 
-    hoods = np.linspace(args.hood_min, args.hood_max, args.n_hood)
-    print(f"{'hood':>7} {'v_ctr':>7} {'TOF':>6} {'hit %':>7} "
-          f"{'spread':>7} {'no_hit':>6}")
-    print("-" * 50)
-    best_rate = -1
-    best_h = None
-    best_v = None
-    rows = []
-    for h in hoods:
-        v = v_centered(d, float(h))
-        if v is None:
-            print(f"{h:7.2f}    n/a    --     --      --      --")
+    fine = np.arange(model.theta_min, model.theta_max + 1e-9, 0.25)
+    fam = centered_family(model, budget, [d], fine)
+    pick = choose_angle(fine, fam.speed[0], fam.margin[0], robot.aim.margin_concession)
+    if pick is None:
+        print(f"no descending shot reaches {d:.2f} m")
+        return 1
+    th_pick, th_best, m_best, th_slow, v_slow = pick
+
+    print(f"Distance {d:.2f} m, exit {model.exit_height} m, opening at {model.target_height} m")
+    print(f"Budget: {budget}\n")
+    print(f"{'hood':>6} {'v':>6} {'flight':>6} {'entry':>6} {'room':>6} | "
+          f"{'speed':>6} {'angle':>6} {'wake':>5} {'total':>6} | {'model':>8} {'Monte Carlo':>16}")
+    print(f"{'deg':>6} {'m/s':>6} {'s':>6} {'deg':>6} {'cm':>6} | "
+          f"{'cm':>6} {'cm':>6} {'cm':>5} {'cm':>6} | {'P %':>8} {'P % (+/-)':>16}")
+    print("-" * 96)
+    for th in np.arange(model.theta_min, model.theta_max + 1e-9, args.step):
+        f = centered_family(model, budget, [d], [th])
+        if not np.isfinite(f.speed[0, 0]):
             continue
-        rate, spread, tof, no_hit = burst_hit_rate(d, float(h), v, N=args.n_balls)
-        rows.append((h, v, tof, rate, spread, no_hit))
-        marker = "  <-- best so far" if rate > best_rate else ""
-        if rate > best_rate:
-            best_rate = rate
-            best_h = float(h)
-            best_v = float(v)
-        print(f"{h:7.2f} {v:7.3f} {tof:6.3f} {rate*100:6.1f}% "
-              f"{spread:7.3f} {no_hit:6d}{marker}")
+        mc = simulate_burst(model, budget, d, float(th), float(f.speed[0, 0]), n=args.n_balls)
+        print(f"{th:6.1f} {f.speed[0, 0]:6.2f} {f.tof[0, 0]:6.2f} {f.entry_angle[0, 0]:6.1f} "
+              f"{f.half_width[0, 0] * 100:6.1f} | {f.spread.speed[0, 0] * 100:6.1f} "
+              f"{f.spread.angle[0, 0] * 100:6.1f} {f.spread.vortex[0, 0] * 100:5.1f} "
+              f"{f.spread.along[0, 0] * 100:6.1f} | {(1 - f.miss[0, 0]) * 100:8.3f} "
+              f"{mc.p_score * 100:9.3f} ({mc.stderr * 100:.3f})")
     print()
-    print(f"BEST in sweep:    hood = {best_h:.2f}°, v = {best_v:.3f} m/s,"
-          f" hit rate = {best_rate*100:.1f}%")
-
-    # Shipped V3.1 pick (V3_TABLE in shooter_sim.html — centered landing, exit 0.50 m)
-    V31 = {
-        1.50: (72.807, 6.1751),
-        1.75: (70.729, 6.3238),
-        2.00: (68.820, 6.4776),
-        2.25: (67.073, 6.6362),
-        2.50: (65.482, 6.7991),
-        2.75: (64.037, 6.9655),
-        3.00: (62.726, 7.1345),
-        3.25: (61.537, 7.3056),
-        3.50: (60.458, 7.4780),
-        3.75: (59.467, 7.6509),
-        4.00: (58.574, 7.8246),
-        4.25: (57.760, 7.9980),
-        4.50: (57.014, 8.1715),
-        4.75: (56.330, 8.3447),
-        5.00: (55.700, 8.5174),
-    }
-    if d in V31:
-        h_v31, v_v31 = V31[d]
-        rate_v31, spr_v31, tof_v31, _ = burst_hit_rate(d, h_v31, v_v31, N=args.n_balls)
-        print(f"V3.1 table pick:  hood = {h_v31:.2f}°, v = {v_v31:.3f} m/s,"
-              f" hit rate = {rate_v31*100:.1f}%, spread = {spr_v31:.3f} m, TOF = {tof_v31:.3f}s")
-        gap = best_rate - rate_v31
-        if gap > 0.02:
-            print(f"\n>>> V3.1 table is suboptimal by {gap*100:.1f} pp"
-                  f" (best {best_rate*100:.1f}% vs V3.1 {rate_v31*100:.1f}%)")
-        else:
-            print(f"\nV3.1 table pick is within {gap*100:.1f} pp of best in sweep.")
+    print(f"highest probability : {th_best:6.2f} deg  (sigma margin {m_best:.2f})")
+    print(f"lowest speed        : {th_slow:6.2f} deg  ({v_slow:.3f} m/s)")
+    print(f"V5 pick             : {th_pick:6.2f} deg  "
+          f"(margin concession {robot.aim.margin_concession:g})")
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())
