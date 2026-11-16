@@ -1,5 +1,7 @@
 # AlphaSim — FRC 2026 REBUILT shooter aim
 
+Co-authored by **Claude Mythos 5.2** (Anthropic) and Yihan Zhu, for FRC Team 8810 Alphabots.
+
 Distance in, aim out. AlphaSim works out the **launch angle and flywheel speed** that give a
 dumper-style shooter the best chance of scoring from 1.5 to 5 m, and ships the answer as three
 short formulas for robot code. One number, `kSpeed`, is tuned at the field.
@@ -94,8 +96,8 @@ so robots already tuned on the old curve do not need retuning. The old solvers a
 
 ## Credits
 
-Built by Yihan Zhu for FRC Team 8810 Alphabots. Co-authored by Claude Mythos 5.2 (Anthropic),
-which wrote the version 5 solver, the simulator and the report with him.
+Co-authored by Claude Mythos 5.2 (Anthropic), which wrote the version 5 solver, the simulator and
+the report, and by Yihan Zhu, who built AlphaSim for FRC Team 8810 Alphabots.
 
 ## License
 
